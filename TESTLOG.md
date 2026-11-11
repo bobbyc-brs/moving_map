@@ -5,6 +5,21 @@ rewritten — a later entry corrects an earlier one.
 
 ---
 
+## 2026-11-10 — Sensors recordings regenerated with country 39
+
+**Tested:** Sensors `0e3c036` (country fix, recordings regenerated) with `parse`.
+
+**Results:**
+- All four recordings decode, **0 errors**: lifecycle 242, load-200 3 220,
+  ottawa-mixed 554, zone-crossing 546 PDUs — counts unchanged.
+- Entity State with country 39: **4 339**; with 124: **0**. Remove Entity: 223
+  (5 / 200 / 13 / 5). Total 4 562, as the Sensors agent reported; its split
+  (4 302 / 260) differs from this one by 37 — not yet reconciled.
+- ottawa-mixed carries all 12 catalogue types, e.g. `1.1.39.81.10`,
+  `1.1.39.82.12`, `3.1.39.200.80`, `3.1.39.200.90`.
+
+**Method:** measured.
+
 ## 2026-11-10 — Wireshark (tshark 4.2.6) cross-check; country code corrected
 
 **Tested:** all four Sensors recordings (4 562 PDUs: 4 302 Entity State, 260
