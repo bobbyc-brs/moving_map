@@ -31,7 +31,7 @@ LAN UDP datagram → `dis::receiver` → `dis::packet` parse (ECEF → WGS84) �
 
 ## How the pieces talk
 
-- **DIS input**: UDP on the local LAN, default port 3000, broadcast or unicast;
+- **DIS input**: UDP on the local LAN, default port 3800 (DD-007), broadcast or unicast;
   `--group` joins one IPv4 multicast group (`src/dis/receiver.rs`, DD-005).
   Nothing is fetched from outside the LAN.
 - **PDU wire format**: IEEE 1278.1 v6/v7, big-endian, 12-byte header

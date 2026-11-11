@@ -229,7 +229,7 @@ fn print_usage() {
     eprintln!("  entities       Display seeded entity table");
     eprintln!("  cache-gen      Write placeholder map tiles for a mission area");
     eprintln!("  listen         Receive DIS from the LAN and draw the live map");
-    eprintln!("                 [--port 3000] [--group 239.1.2.3] [--iface 10.0.0.5]");
+    eprintln!("                 [--port 3800] [--group 239.1.2.3] [--iface 10.0.0.5]");
     eprintln!("                 [--exercise N] [--ownship s.a.e] [--lat F --lon F]");
     eprintln!("                 [--range-nm 25] [--seconds N]");
 }

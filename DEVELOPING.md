@@ -26,8 +26,8 @@ cargo run -- demo    # text map demo
 cargo run -- entities                # seeded entity table only
 cargo run -- parse-stdin < file.bin  # parse DIS PDUs from stdin
 cargo run -- parse file.bin          # parse DIS PDUs from a file
-cargo run -- listen --port 3000 --ownship 1.1.1     # live DIS from the LAN (Ctrl-C to stop)
-cargo run -- listen --port 3000 --group 239.1.2.3 --exercise 1 --seconds 30
+cargo run -- listen --port 3800 --ownship 1.1.1     # live DIS from the LAN (Ctrl-C to stop)
+cargo run -- listen --port 3800 --group 239.1.2.3 --exercise 1 --seconds 30
 cargo run -- cache-gen --lat 45.0 --lon -75.0 --range-nm 100 tile-cache   # placeholder tiles only (#2)
 ```
 

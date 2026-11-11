@@ -77,7 +77,7 @@ point ~3° off-centre in its zone.*
 
 ## Phase 5 — Real-time DIS reception
 
-- [x] UDP receiver (`dis::receiver`, `listen`) — port 3000 default, optional
+- [x] UDP receiver (`dis::receiver`, `listen`) — port 3800 default (DD-007; was 3000), optional
       multicast group (DD-005; the planned `239.255.1.1:30000` was dropped)
 - [x] Driven end to end by Sensors' DIS gateway (Sensors CR-001, TESTLOG)
 - [ ] GUI integration (after the dependency decision)
@@ -170,7 +170,7 @@ local LAN. The dev machine having internet does not make crates or tile
 servers available on the target.
 
 **⚖ Decisions for Bobby, in order:**
-1. **DIS site settings** — port (3000 assumed), broadcast or multicast group, exercise ID. Needs the simulators' configuration.
+1. **DIS site settings** — port (**3800** default, Bobby 2026-11-10 — still must match the simulators), broadcast or multicast group, exercise ID. Needs the simulators' configuration.
 2. **Dependency policy (revisits DD-001)** — DD-001's premise ("sandbox has no network") no longer holds. Options: stay std-only; or allow crates **vendored into the repo** (`cargo vendor`) so builds never reach crates.io. `egui` would arrive this way.
 3. **Tile source on the target** — which approved site serves tiles, or whether tiles are pre-staged by `cache-gen` on a connected machine and carried in. Either way the fetcher takes an explicit server allowlist with no fallback hosts.
 4. **Real DIS capture** — a few seconds of `.pcap` from the site simulators would replace synthetic test vectors with real ones.
@@ -188,7 +188,7 @@ here (TESTLOG 2026-11-10, "Sensors DIS gateway"). Run it with:
 python3 simulation_manager.py -v 3 --headless --dis            # truth only
 python3 simulation_manager.py -v 3 --headless --dis --dis-fused # + sensed tracks
 # ~/Projects/moving-map-display
-cargo run -- listen --port 3000 --range-nm 200
+cargo run -- listen --port 3800 --range-nm 200
 ```
 
 **Decided by Bobby:** civil aircraft are Neutral (force 3); sensed traffic is

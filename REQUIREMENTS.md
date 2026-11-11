@@ -60,7 +60,7 @@ family, version and byte layout that are not IEEE 1278.1 — see PLAN.md,
 Discrepancies #5.*
 
 - Receive DIS on the **local LAN**: UDP broadcast or unicast on a configurable
-  port (default **3000**), optionally joining one IPv4 multicast group.
+  port (default **3800**, DD-007), optionally joining one IPv4 multicast group.
   Filter by exercise ID when configured.
 - Parse IEEE 1278.1 **protocol versions 6 and 7**, big-endian, including
   bundled datagrams (several PDUs per datagram).

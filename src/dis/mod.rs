@@ -14,7 +14,8 @@ use crate::dis::packet::Pdu;
 /// nothing here reaches beyond the LAN.
 #[derive(Debug, Clone)]
 pub struct DisConfig {
-    /// UDP port. 3000 is the conventional DIS port — confirm against the
+    /// UDP port. 3800 by default (Bobby, 2026-11-10; DD-007) — 3000 is too
+    /// common. Confirm against the
     /// simulators on site (PLAN.md ⚖).
     pub port: u16,
     /// Multicast group to join; `None` receives broadcast and unicast only.
@@ -27,7 +28,7 @@ pub struct DisConfig {
 
 impl Default for DisConfig {
     fn default() -> Self {
-        Self { port: 3000, multicast_group: None, interface: None, exercise_id: None }
+        Self { port: 3800, multicast_group: None, interface: None, exercise_id: None }
     }
 }
 
@@ -94,6 +95,12 @@ mod tests {
     use super::*;
     use crate::dis::packet::{encode, parse_pdu};
     use crate::map::projection::geodetic_to_ecef;
+
+    #[test]
+    fn default_port_is_3800() {
+        // DD-007: must match Sensors' default; change both together.
+        assert_eq!(DisConfig::default().port, 3800);
+    }
 
     #[test]
     fn apply_state_then_remove() {

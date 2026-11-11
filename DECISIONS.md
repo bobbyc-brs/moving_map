@@ -7,6 +7,28 @@ date: 2026-11-08
 Newest first from DD-004 on, per `~/Projects/standards/BOBBYC_STYLE.md`;
 DD-001 to DD-003 predate that and stay in their original order below.
 
+## DD-007 — Default DIS port 3800
+**Date:** 2026-11-10
+**Status:** Decided (Bobby)
+
+### Decision
+Default UDP port is **3800**, in moving-map (`DisConfig::port`, `listen`) and
+Sensors (gateway and CGF runner) together. 3801–3809 are kept for private test
+runs on one machine. `--port` overrides on both sides. Supersedes the port
+part of DD-005; the rest of DD-005 stands.
+
+### Rationale
+- 3000 is too common (Bobby) — many dev servers and DIS tools default to it,
+  so a stray sender or listener on the LAN is likely.
+- Bobby avoids x911 because of his other work; 380x is clear of it and below
+  Linux's ephemeral range (32768–60999).
+- Recordings are unaffected: raw `.bin` files carry no port, and Sensors'
+  `.pcap` files were captured on 3901–3904.
+
+### Alternatives Considered
+- **3000:** rejected, too common. **3911:** used for today's tests; rejected (x911).
+- On site the port must still match what JCATS/JTTS send — PLAN ⚖ 1.
+
 ## DD-006 — UTM by the Krüger series; 10 cm accuracy requirement
 **Date:** 2026-11-10
 **Status:** Decided

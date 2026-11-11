@@ -20,6 +20,8 @@ rewritten — a later entry corrects an earlier one.
 
 **Method:** measured.
 
+---
+
 ## 2026-11-10 — Wireshark (tshark 4.2.6) cross-check; country code corrected
 
 **Tested:** all four Sensors recordings (4 562 PDUs: 4 302 Entity State, 260
