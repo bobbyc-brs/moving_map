@@ -273,7 +273,7 @@ fn main() {
     match command {
         Some("demo") => run_demo(),
         Some("parse") => {
-            let filename = args.get(1).map(|s| s.as_str());
+            let filename = args.get(2).map(|s| s.as_str());
             match filename {
                 Some(path) => {
                     let data = fs::read(path).unwrap_or_else(|e| {
