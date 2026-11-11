@@ -57,6 +57,7 @@ LAN UDP datagram → `dis::receiver` (feed thread) → `dis::packet` parse (ECEF
 | Document | Answers |
 |---|---|
 | `DEVELOPING.md` | How to build, run, and test; project conventions |
+| `DEMO.md` | How to run the demo with Sensors, and what to look for |
 | `REQUIREMENTS.md` | What the system must do |
 | `PLAN.md` | Phases, status, open ⚖ decisions, known discrepancies |
 | `DECISIONS.md` | Why it is built this way (DD-001 to DD-012) |
