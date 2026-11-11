@@ -18,7 +18,10 @@ cd ~/Projects/moving-map-display
 cargo build          # build
 cargo test           # run tests
 cargo run -- demo    # text map demo
+cargo run -- entities                # seeded entity table only
 cargo run -- parse-stdin < file.bin  # parse DIS PDUs from stdin
+cargo run -- parse file.bin          # broken 2026-11-10 — see PLAN.md, Discrepancies #1
+cargo run -- cache-gen --lat 45.0 --lon -75.0 --range-nm 100 tile-cache   # placeholder tiles only (#2)
 ```
 
 ## Mission map data
@@ -46,6 +49,10 @@ Local cache directory (flat file tree)
 | URL template | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` |
 
 ### Cache layout
+
+> **Clarification 2026-11-10:** the code writes `<root>/cache.{z}/{x}/{y}.png`
+> (`src/cache/manager.rs:29`), not the `cache/tiles/` tree shown below — see
+> `PLAN.md`, Discrepancies #6.
 
 Tiles are stored in a flat directory indexed by `z/x/y.png`:
 

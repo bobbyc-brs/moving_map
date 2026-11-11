@@ -158,3 +158,21 @@ moving-map-display/
 ## 🔜 Next session work
 
 See `SESSION-STATUS.md` for detailed context.
+
+## Discrepancies found 2026-11-10
+
+Found while bringing `README.md` into line with `~/Projects/standards/`.
+Recorded here rather than silently fixed; each needs an owner decision or a
+code change.
+
+| # | Discrepancy | Evidence | Method |
+|---|---|---|---|
+| 1 | `parse <file>` reads the word `parse` as the filename, so it always fails | `src/main.rs:276` uses `args.get(1)`; should be `args.get(2)` | Measured: ran it, got "Error reading parse" |
+| 2 | `cache-gen` writes 1×1 white placeholder PNGs; it downloads nothing. Phase 4 above says "Downloads/renders" | `TileServerData`, `src/cache/manager.rs:202` | Read the code |
+| 3 | Entity Detection (type 5) is labelled, not decoded — the old README marked it ✅ | `src/main.rs:249` | Read the code |
+| 4 | "±50 m" inverse-projection accuracy is not tested: round-trip tests allow 0.05° (~5.5 km latitude) | `src/map/projection.rs:115-128` | Read the tests |
+| 5 | PDU type numbers (2 Death, 4 Recreation, 5 Detection) and lat/lon in Entity State may not match IEEE 1278.1, where 2 is Fire, 4 Collision, 5 Service Request, and location is geocentric XYZ | `process_pdu`, `src/main.rs:222` | Hypothesis from knowledge of the standard — not yet checked against the spec text |
+| 6 | `DEVELOPING.md` gives the cache layout as `cache/tiles/z/x/y.png`; the code writes `cache.{z}/x/y.png` | `src/cache/manager.rs:29` | Read the code |
+| 7 | Both blockers ("no crates.io network", "needs network stack") date from the original sandbox. `std::net::UdpSocket` needs no crates, so Phase 5's receiver is not blocked on network access | DD-001 | Hypothesis — re-check network access on this machine |
+
+⚖ #5 decides whether this parser can read real DIS traffic at all; worth settling before Phase 5.
