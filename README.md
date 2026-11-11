@@ -17,10 +17,10 @@ terminal; the GUI is not built yet (see `PLAN.md`).
 | Path | System | What it is | Stack |
 |---|---|---|---|
 | `src/dis/` | Library | DIS PDU parser (IEEE 1278.1), UDP receiver, entity table | Rust std |
-| `src/map/` | Library | WGS84 ↔ UTM projection (per DD-002) | Rust std |
+| `src/map/` | Library | WGS84 ↔ UTM (Krüger series, 10 cm round trip; DD-002, DD-006) and ECEF ↔ WGS84 | Rust std |
 | `src/render/` | Library | APP-6A character symbology for the text map (per DD-003) | Rust std |
 | `src/cache/` | Library | Map tile cache: mission-area tile bounds, atomic tile writes | Rust std |
-| `src/app/` | Library | Application state shared by receiver and renderer | Rust std |
+| `src/app/` | Library | Planned GUI application state — **not compiled yet** (`PLAN.md`, Discrepancies #8) | Rust std |
 | `src/main.rs` | Binary | CLI: `listen`, `demo`, `entities`, `parse`, `parse-stdin`, `cache-gen` | Rust std |
 
 No external crates — all of `[dependencies]` in `Cargo.toml` is empty, per DD-001.
@@ -53,7 +53,7 @@ LAN UDP datagram → `dis::receiver` → `dis::packet` parse (ECEF → WGS84) �
 | `DEVELOPING.md` | How to build, run, and test; project conventions |
 | `REQUIREMENTS.md` | What the system must do |
 | `PLAN.md` | Phases, status, open ⚖ decisions, known discrepancies |
-| `DECISIONS.md` | Why it is built this way (DD-001 to DD-005) |
+| `DECISIONS.md` | Why it is built this way (DD-001 to DD-006) |
 | `TEST-PLAN.md` | How each requirement will be verified |
 | `TESTLOG.md` | What was actually verified, and when |
 | `SESSION-STATUS.md` | Hand-off notes from the most recent working session |

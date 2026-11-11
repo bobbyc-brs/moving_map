@@ -7,6 +7,41 @@ date: 2026-11-08
 Newest first from DD-004 on, per `~/Projects/standards/BOBBYC_STYLE.md`;
 DD-001 to DD-003 predate that and stay in their original order below.
 
+## DD-006 — UTM by the Krüger series; 10 cm accuracy requirement
+**Date:** 2026-11-10
+**Status:** Decided
+
+### Decision
+Implement UTM forward and inverse with the **Krüger n-series** (Karney 2011,
+truncated at n⁴), and require a lat/lon → UTM → lat/lon round trip within
+**10 cm** anywhere in a zone (Bobby: 1 mm is too stringent for aircraft; 10 cm
+is the right bar).
+
+### Rationale
+- Measuring the old code in metres exposed three bugs a 0.05° (~5.5 km)
+  tolerance had hidden: no southern false northing (10 063 km error), no inverse
+  latitude correction, and the zone's west edge used as its central meridian
+  (every point ~3° off-centre). Patching a hand-rolled series was riskier than
+  replacing it with the standard formulation.
+- Krüger to n⁴ is sub-millimetre within a zone — measured worst < 0.1 mm over
+  45 points, 70°S–70°N; independent checks against a numerically integrated
+  meridian arc (± 1 mm) and the 166 021.44 m equator zone-edge easting
+  (TESTLOG 2026-11-10, commit `231b97c`).
+- Pure arithmetic: no dependencies (DD-001 holds).
+
+### Alternatives Considered
+- **Fix the old Snyder-style series in place:** rejected — three independent
+  bugs, and its tests encoded the wrong values.
+- **`proj` crate:** rejected for now — C library dependency, at odds with DD-001
+  and the one-way-download target.
+
+### Known Gaps
+- Zone transitions as ownship crosses a boundary (FR-002) are not exercised yet;
+  `to_utm_zone()` exists so the renderer can hold ownship's zone. Sensors CR
+  for a zone-crossing scenario requested.
+- Accuracy degrades far outside a zone (> ~3 000 km from the central meridian);
+  irrelevant at the 500 NM display limit.
+
 ## DD-005 — Live DIS receiver: std-only UDP on the LAN
 **Date:** 2026-11-10
 **Status:** Decided

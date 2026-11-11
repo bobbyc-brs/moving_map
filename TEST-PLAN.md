@@ -1,5 +1,6 @@
 ---
 date: 2026-11-08
+updated: 2026-11-10
 ---
 
 # Test Plan — moving-map-display
@@ -13,14 +14,14 @@ Unit tests live alongside source in `src/` modules. Integration tests
 src/
   dis/
     packet.rs          #[cfg(test)] unit tests
-    receiver.rs        #[cfg(test)] mocked socket tests
+    receiver.rs        #[cfg(test)] loopback UDP socket tests
   map/
     projection.rs      #[cfg(test)] coordinate transforms
     mgrs.rs            #[cfg(test)] grid generation
   render/
     nato.rs            #[cfg(test)] symbol geometry
 app/
-  state.rs             #[cfg(test)] entity lifecycle
+  state.rs             #[cfg(test)] entity lifecycle — NOT COMPILED (PLAN.md Discrepancies #8)
 tests/
   integration/
     dis_roundtrip.rs   — simulate DIS PDUs, verify entity table
@@ -31,14 +32,20 @@ tests/
 
 ### DIS packet parsing
 
+*Revised 2026-11-10 (DD-004): the original rows tested Death / Recreation PDUs
+that are not IEEE 1278.1, at sizes that do not match the standard. Implemented
+tests named in brackets.*
+
 | Test | Input | Expected |
 |---|---|---|
-| `parse_entity_state_valid` | 146-byte valid PDU blob | `EntityStatePdu` with correct fields |
-| `parse_entity_state_short` | 100-byte PDU blob (truncated) | `Err(ParseError::Truncated)` |
-| `parse_entity_death_valid` | 12-byte death PDU | `EntityDeathPdu` with correct IDs |
-| `parse_recreation_valid` | 40-byte recreation PDU | `EntityRecreationPdu` with correct template |
-| `parse_header_unknown_type` | Header with type 99 | `Err(ParseError::UnknownPduType(99))` |
-| `parse_header_bad_length` | Header with length < 12 | `Err(ParseError::InvalidLength(9))` |
+| `parse_entity_state_valid` [`entity_state_round_trip`] | 144-byte v7 Entity State | ID, force, type, marking, ECEF → lat/lon/alt exact |
+| `parse_entity_state_short` [`entity_state_truncated`] | 143 bytes | `Err(Truncated { expected: 144 })` |
+| `parse_entity_state_var_params` [`entity_state_requires_variable_parameter_bytes`] | count = 2, no records | `Err(Truncated { expected: 176 })` |
+| `parse_remove_entity_valid` [`remove_entity_round_trip`] | 28-byte Remove Entity | receiving ID, request ID |
+| `parse_header_fields` [`header_fields_are_big_endian_in_ieee_order`] | hand-written bytes | IEEE field order, big-endian |
+| `parse_header_bad_length` [`header_rejects_short_and_bad_length`] | length field 11 | `Err(InvalidLength(11))` |
+| `parse_unknown_type` [`dispatch_and_split_bundle`] | Fire PDU (type 2) | `Pdu::Other`, not an error |
+| `split_bundle` [`dispatch_and_split_bundle`] | 3 PDUs in one buffer | 3 slices |
 
 ### DIS entity table
 
@@ -46,18 +53,24 @@ tests/
 |---|---|---|
 | `insert_new_entity` | Insert EntityState for entity ID 42 | `entities.len() == 1` |
 | `update_existing_entity` | Insert, then update same ID with new position | Position updated, timestamp refreshed |
-| `delete_entity` | Send death PDU for entity ID 42 | Entity removed from table |
-| `stale_entities` | Insert entity, advance clock 16 s | `is_stale()` returns true |
+| `delete_entity` | Send Remove Entity PDU for entity ID 42 | Entity removed from table |
+| `stale_entities` | Insert entity, advance clock 13 s | `is_stale()` returns true (12 s timeout, DD-005) |
 | `entity_not_stale` | Insert entity, advance clock 5 s | `is_stale()` returns false |
-| `recreate_after_death` | Death then recreation with same ID | Entity re-added with template data |
+| `reappear_after_remove` | Remove Entity, then Entity State with same ID | Entity re-added *(revised 2026-11-10: was "recreation PDU")* |
 
 ### Map projection
 
+*Revised 2026-11-10 (DD-006): tolerance set to **10 cm** (Bobby); the original
+rows named wrong zones (45°N 75.6°W is zone 18, not 17; 72°W starts zone 19).*
+
 | Test | Input | Expected |
 |---|---|---|
-| `ll_to_utm_wgs84` | LatLon(45.0, -75.6) | Correct UTM zone 17U, easting/northing |
-| `utm_to_ll_roundtrip` | UTM(500000, 5000000) zone 17U | LatLon within 1 mm of original |
-| `zone_boundary` | LatLon(44.9, -72.0) near zone 18 | Correct zone 18 |
+| `utm_round_trip_within_10_cm` | 45 points, 70°S–70°N, zone centre to edges | worst round trip < 10 cm (measured < 0.1 mm) |
+| `central_meridian_matches_meridian_arc` | 75°W at 10/45/45.42/70°N | easting 500 000 m; northing = k0 × numeric meridian arc ± 1 mm |
+| `equator_zone_edge_easting` | (0°, 0°) | zone 31, easting 166 021.44 m |
+| `southern_hemisphere_false_northing` | just south of the equator | northing ≈ 10 000 000 m |
+| `zone_boundaries` | 72.000001°W / 72°W / ±180° | zones 18 / 19 / 60 / 1 |
+| `ecef_round_trip_sub_millimetre` | 4 points incl. 89.9°N | lat/lon 1e-8°, height 1 mm |
 | `centre_offset_default` | Any world coord | Ownship maps to 50%x, 70%y screen |
 | `centre_offset_custom` | Ownship at 50%x, 80%y | Configurable |
 
@@ -91,9 +104,9 @@ tests/
    - Verify entity table contains the sender.
    - Verify position matches the sent PDU.
    - Verify last\_heard is recent.
-4. Stop sender, wait 16 s:
+4. Stop sender, wait 13 s (12 s timeout, DD-005):
    - Verify entity is marked stale.
-5. Send Entity Death PDU:
+5. Send Remove Entity PDU *(revised 2026-11-10: was "Entity Death")*:
    - Verify entity removed.
 
 ### Render frame (headless)

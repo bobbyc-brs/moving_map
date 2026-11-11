@@ -8,7 +8,7 @@ updated: 2026-11-10
 ## Phase 0 — Project scaffold and build
 
 - [x] `cargo init --name moving-map-display`
-- [x] Zero dependencies (no crates.io — sandbox has no network)
+- [x] Zero dependencies (no crates.io — the *original sandbox* had no network; this dev machine does, measured 2026-11-10 — see ⚖ dependency policy)
 - [x] `cargo check` succeeds
 - [x] `cargo build` produces working binary (~2 MB)
 
@@ -16,34 +16,28 @@ updated: 2026-11-10
 
 ## Phase 1 — DIS protocol layer
 
-- [x] `dis::packet` module:
-      - `PduHeader` — parse 12-byte fixed header
-      - `EntityStatePdu` — parse 134 bytes of entity state payload
-      - `EntityDeathPdu` — parse 12 bytes
-      - `EntityRecreationPdu` — parse 40 bytes
-      - `EntityDetectionPdu` — parse 38 bytes
-- [x] `dis::entity` module:
-      - `EntityRecord` struct with all DIS attributes
-      - `Status` enum: Friendly, Hostile, Unknown, Neutral
-      - `Station` enum: Infantry, Surface, Air, SurfaceVessel, etc.
-      - `Activity` enum: Squad, Tank, Fighter, etc.
-      - `EntityId` struct: site.application.entity
-- [ ] ~~`dis::receiver` module:~~ **deferred to Phase 5**
-  - ~~`EntityTable` struct with upsert/delete/stale-purge~~ — entity table exists in `dis::entity`
-  - ~~`recv_loop()` — UDP multicast receiver~~ — deferred
+*Revised 2026-11-10.* The first parser (2026-11-08) was not IEEE 1278.1 and
+was rewritten (DD-004); its "✅ Complete" is withdrawn (TESTLOG 2026-11-10).
 
-**Status:** ✅ Complete (2026-11-08)
+- [x] `dis::packet` — IEEE 1278.1 v6/v7 header, Entity State (144 B + 16 per
+      variable parameter), Remove Entity (28 B), bundle splitting
+- [x] `dis::entity` — `EntityRecord`; `Status` from DIS Force ID; `Station` from kind/domain
+- [x] `dis::receiver` — std-only UDP, broadcast/unicast/multicast, exercise filter (DD-005)
+- [ ] Entity type → `Activity` / symbol from SISO-REF-010 categories, incl.
+      cars, trucks, buses, school buses, horses (Bobby, 2026-11-10)
+
+**Status:** ⏳ Rewritten and verified 2026-11-10; type mapping not started
 
 ## Phase 2 — Map geometry
 
-- [x] `map::projection` module:
-      - `LatLon::to_utm()` — WGS84 → UTM Transverse Mercator
-      - `EastingNorthing::to_latlon()` — inverse (±50 m accuracy)
-      - Zone computation from longitude (1–60)
-      - WGS84 ellipsoid, k0 = 0.9996 scale factor
+- [x] `map::projection` — UTM forward/inverse by Krüger series (DD-006),
+      ECEF ↔ WGS84 for DIS positions
+- [x] Accuracy: **10 cm** round trip required (Bobby, 2026-11-10); measured
+      < 0.1 mm over 45 points (TESTLOG 2026-11-10)
 
-**Status:** ✅ Complete (2026-11-08)
-⚠ Inverse accuracy: ±50 m at mid-latitudes (sufficient for display)
+**Status:** ✅ Complete (2026-11-10). *Revised: the 2026-11-08 version claimed
+±50 m but was off by up to 10 063 km (southern hemisphere) and placed every
+point ~3° off-centre in its zone.*
 
 ## Phase 3 — NATO symbology renderer
 
@@ -68,12 +62,12 @@ updated: 2026-11-10
 - [x] Demo subcommand: `cargo run -- demo`
 - [x] PDU parser subcommand: `cargo run -- parse <file>`
 - [x] **Tile cache CLI: `cache-gen` subcommand** — 2026-11-10
-      - Downloads/renders map tiles for a mission area
+      - Writes **placeholder** tiles for a mission area (no fetcher yet — Discrepancies #2)
       - Flags: `--lat`, `--lon`, `--range-nm`, `--zoom`
       - Defaults: lat=45, lon=-75, range=100 NM, auto-zoom from range
       - Cache layout: `cache.{z}/x/y.png` with `.downloaded` sentinels
 
-- [ ] **egui/eframe GUI** — blocked: no crates.io access
+- [ ] **egui/eframe GUI** — needs the ⚖ dependency-policy decision (not network access)
   - Central viewport with painter API
   - Sidebar entity info panel
   - Top bar: zoom slider, grid/ring toggles
@@ -83,14 +77,13 @@ updated: 2026-11-10
 
 ## Phase 5 — Real-time DIS reception
 
-- [ ] UDP multicast receiver (`dis::receiver::recv_loop`)
-  - Bind to `239.255.1.1:30000`
-  - Non-blocking recv → dispatch by PDU type
-  - Entity table updates in real time
-- [ ] GUI integration (when egui is available)
-- [ ] Performance: target ≥ 30 fps with 200 entities
+- [x] UDP receiver (`dis::receiver`, `listen`) — port 3000 default, optional
+      multicast group (DD-005; the planned `239.255.1.1:30000` was dropped)
+- [x] Driven end to end by Sensors' DIS gateway (Sensors CR-001, TESTLOG)
+- [ ] GUI integration (after the dependency decision)
+- [ ] Performance: ≥ 30 fps with 200 entities (Sensors CR for a 200-entity load scenario)
 
-**Status:** ⏳ Not started (blocked: network + egui)
+**Status:** ⏳ Receiver done 2026-11-10; GUI and performance not started
 
 ## Phase 6 — Polish
 
@@ -98,53 +91,23 @@ updated: 2026-11-10
 - [x] README.md, DEVELOPING.md, DECISIONS.md, REQUIREMENTS.md, TEST-PLAN.md
 - [x] `.gitignore` (target/, tile-cache/, cache.*, IDE files)
 - [ ] LICENSE file
-- [ ] `.git` init with initial commit
+- [x] `.git` init with initial commit (`96c1a76`, 2026-11-10); remote
+      `github.com/bobbyc-brs/moving_map` added, not yet pushed
 
 **Status:** ⏳ Partial (docs + cache-gen done, license needed)
 
 ## 🧪 Test status (updated 2026-11-10)
 
-**27 tests passing, 0 failing:**
-- 11 cache/manager tests (tile path, sentinel, write/read, count, list, clear, file server)
-- 12 cache/tile_bounds tests (geobounds, auto-zoom, mission area, tile coords, lat/lon roundtrip)
-- 3 map/projection tests (UTM roundtrip, equator, zone 18)
-- 1 dis/entity test
+**`cargo test`: 45 passing, 0 failing** — 11 cache/manager, 13
+cache/tile_bounds, 8 projection, 9 dis/packet, 3 dis/receiver, 1 dis table.
+Evidence and history in `TESTLOG.md`. *(The earlier "27 tests incl. 1
+dis/entity test" was a miscount: there was no dis/entity test.)*
 
-**Test isolation fix (2026-11-10):** Tests now use unique temp dirs (`/tmp/moving-map-test-{0..N}`) with automatic cleanup via `Drop` guard. Previously all tests shared `/tmp/moving-map-test-<pid>`, causing stale-file pollution.
+**Test isolation fix (2026-11-10):** Tests now use unique temp dirs (`/tmp/moving-map-test-{0..N}`) with automatic cleanup via `Drop` guard.
 
 ## 📁 Current file layout
 
-```
-moving-map-display/
-├── Cargo.toml, Cargo.lock
-├── .gitignore
-├── PLAN.md
-├── REQUIREMENTS.md
-├── TEST-PLAN.md
-├── DEVELOPING.md
-├── DECISIONS.md
-├── README.md
-├── src/
-│   ├── main.rs          — CLI entry point, demo, parse, cache-gen
-│   ├── cache/
-│   │   ├── mod.rs
-│   │   ├── tile_bounds.rs — lat/lon ↔ xyz, MissionArea, TileBounds
-│   │   └── manager.rs     — TileCache, TileServer trait, FileTileServer
-│   ├── dis/
-│   │   ├── mod.rs
-│   │   ├── entity.rs      — EntityRecord, Status, Station, Activity, EntityId
-│   │   └── packet.rs      — PduHeader, EntityState, Death, Recreation, Detection
-│   ├── map/
-│   │   ├── mod.rs
-│   │   └── projection.rs  — LatLon→UTM, UTM→LatLon
-│   ├── render/
-│   │   ├── mod.rs
-│   │   └── nato.rs        — NATO APP-6A character lookup
-│   └── app/
-│       ├── mod.rs         — placeholder
-│       └── state.rs       — placeholder
-└── target/ (build output)
-```
+See `DEVELOPING.md`, *Project structure* (kept in one place to stop drift).
 
 ## ⚖ Decisions
 
@@ -153,7 +116,12 @@ moving-map-display/
 3. **Map basemap** — vector grid + cached tiles. Tile servers planned: OSM (Mapnik), CartoDB Positron (preferred), CartoDB Dark Matter, OSM Topo.
 4. **Tile cache layout** — `cache.{z}/x/y.png` with `.downloaded` sentinel files. Directory per zoom level, x subdirectory, y.png file.
 5. **Auto-zoom formula** — `14 - floor(range_nm / 100)`, clamped to [10, 15]. 200 NM → zoom 12.
-6. **Zero dependencies** — std-only for now. All crates deferred until network access is available.
+6. **Zero dependencies** — std-only for now. *Revised 2026-11-10:* the reason
+   is no longer "no network" — it is the target's one-way, approved-site-only
+   download. Decision pending: stay std-only, or allow crates vendored into the repo.
+7. **Basemap scope (new 2026-11-10)** — `REQUIREMENTS.md` §1.2/§5 say vector
+   grid only and no external data files; the tile cache assumes downloaded
+   tiles. Keep tiles in scope (and from which approved source), or drop them?
 
 ## 🔜 Next session work
 
@@ -186,9 +154,9 @@ code change.
 | 1 | Done — `parse <file>` fixed | commit `cb76995` |
 | 2 | Open — placeholder tiles remain; see ⚖ 3 below | |
 | 3 | Done — Entity Detection was not a DIS PDU; removed | DD-004 |
-| 4 | Open — ±50 m still untested | |
+| 4 | Done — replaced by Krüger series; 10 cm proven (< 0.1 mm measured) | DD-006, commit `231b97c` |
 | 5 | Done — confirmed non-standard (measured against Wireshark + Open-DIS source); parser rewritten | DD-004, TESTLOG 2026-11-10 |
-| 6 | Open — `DEVELOPING.md` cache tree still shows the old layout (clarification note added) | |
+| 6 | Done — `DEVELOPING.md` cache layout rewritten to match the code | docs commit 2026-11-10 |
 | 7 | Done — network measured available on this dev machine: `index.crates.io` and `tile.openstreetmap.org` both HTTP 200 | |
 | 8 | **New, open** — `src/app/` is not compiled (`main.rs` has no `mod app;`) and would not compile: it calls the absent `log` crate and an old `to_record` signature. Its 2 tests have never run | `src/app/state.rs` |
 

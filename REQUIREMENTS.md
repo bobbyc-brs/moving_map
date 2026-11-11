@@ -1,5 +1,6 @@
 ---
 date: 2026-11-08
+updated: 2026-11-10
 ---
 
 # Requirements — moving-map-display
@@ -14,8 +15,10 @@ standard **NATO APP-6A** symbology. DIS is the sole source of positional data.
 
 - **Ownship tracking** — receive ownship Entity State PDU via DIS UDP and
   maintain position, heading, pitch, roll, and speed.
-- **Entity discovery** — discover remote entities via Entity State,
-  Entity Detection, and Entity Recreation PDUs; remove on Entity Death PDU.
+- **Entity discovery** — discover remote entities via Entity State PDUs;
+  remove on Remove Entity PDU or heartbeat timeout. *Revised 2026-11-10
+  (DD-004): "Entity Death / Recreation / Detection" PDUs do not exist in
+  IEEE 1278.1.*
 - **Moving map render** — render a top-down cartographic view with a
   centring mechanism that keeps ownship in view while the map scrolls
   beneath.
@@ -52,23 +55,31 @@ standard **NATO APP-6A** symbology. DIS is the sole source of positional data.
 
 ### FR-001 — DIS reception
 
-- Listen on multicast address `239.255.1.1` (configurable) port `30000`
-  UDP for HLA DIS PDUs.
-- Parse **Entity State PDU** (type 1, family 3, version 2) — the
-  authoritative source of entity position and identity.
-- Parse **Entity Death PDU** (type 2, family 3, version 2) to remove
-  entities no longer transmitting.
-- Parse **Entity Recreation PDU** (type 4, family 3, version 2) to
-  handle entity respawn.
-- Parse **Entity Detection PDU** (type 5, family 3, version 2) for
-  sensor contact information.
-- Maintain an **entity table** with a 15-second stale-marker timeout per
-  entity.
+*Revised 2026-11-10 (DD-004, DD-005). The original text specified PDU types,
+family, version and byte layout that are not IEEE 1278.1 — see PLAN.md,
+Discrepancies #5.*
+
+- Receive DIS on the **local LAN**: UDP broadcast or unicast on a configurable
+  port (default **3000**), optionally joining one IPv4 multicast group.
+  Filter by exercise ID when configured.
+- Parse IEEE 1278.1 **protocol versions 6 and 7**, big-endian, including
+  bundled datagrams (several PDUs per datagram).
+- Parse **Entity State PDU** (type 1, family 1) — the authoritative source of
+  entity position (geocentric ECEF), orientation, identity, force ID, entity
+  type and marking.
+- Parse **Remove Entity PDU** (type 12, family 5) to remove an entity at once.
+- Count, but do not decode, all other PDU types; never fail on them.
+- Maintain an **entity table**; drop an entity after **12 s** without an
+  Entity State PDU (IEEE 1278.1 default heartbeat 5 s × multiplier 2.4).
 
 ### FR-002 — Map projection
 
 - Use **UTM / MGRS** projection centred on the ownship position.
-- Support both **WGS84** and **World Geodetic Datum 1984** ellipsoid.
+- Use the **WGS84** ellipsoid. *(Revised 2026-11-10: the original line listed
+  "WGS84 and World Geodetic Datum 1984" — the same datum.)*
+- **Accuracy:** projection round trip (lat/lon → UTM → lat/lon) within
+  **10 cm** anywhere in a zone. *Added 2026-11-10 — Bobby: 10 cm is the right
+  bar for aircraft; met with sub-millimetre margin (DD-006, TESTLOG).*
 - Handle UTM zone transitions as ownship crosses zone boundaries.
 
 ### FR-003 — NATO symbology rendering
@@ -80,6 +91,10 @@ standard **NATO APP-6A** symbology. DIS is the sole source of positional data.
     unknown = yellow, neutral = green).
   - Modifiers encode **type** (squad, platoon, company, battalion,
     brigade; sedan, APC, tank; fighter, helicopter, cargo, tanker).
+  - *Added 2026-11-10 (Bobby):* civilian **cars, trucks, buses (incl. school
+    buses)** and **horses**, mapped from the DIS entity type (SISO-REF-010:
+    land categories 81 car, 82 bus / sub 12 school bus, 83 cargo truck;
+    life form, category 200 mammal, sub 80 horse). Road-following is future work.
   - Annotate with **T-Grid reference**, **call sign**, and
     **equipment count**.
 - Draw ownship as a distinct aircraft symbol with heading vector.
@@ -125,19 +140,25 @@ standard **NATO APP-6A** symbology. DIS is the sole source of positional data.
 - **Linux x86_64 only** — Wayland or X11 windowing.
 - **No network access** beyond DIS UDP multicast — no HTTP, no DNS.
 - **Single binary** — no plugin system, no external data files.
+- ⚖ *Noted 2026-11-10 — conflicts with work already done: the tile cache
+  (`src/cache/`, `cache-gen`) assumes downloaded map tiles held as external
+  files, while this section and §1.2 say "vector grid only, no external data
+  files, no HTTP". The deployed target allows one-way download from approved
+  sites only. Bobby to decide whether basemap tiles are in scope (PLAN.md ⚖).*
 - **No graphical assets** — all symbology drawn programmatically.
 
 ## 6.  Assumptions
 
-- A DIS simulation or SIOS JCATS / JTTS is running and broadcasting
-  on the configured multicast address.
-- The host machine has a multicast-capable network interface.
+- A DIS simulation or SIOS JCATS / JTTS is running and sending DIS on the
+  local LAN (broadcast, unicast or multicast — confirm on site, PLAN.md ⚖).
+  For development, Sensors' DIS gateway stands in (Sensors CR-001).
+- The host machine has a network interface on that LAN.
 - WGS84 is sufficient for positional data (no local datum required).
 
 ## Notes
 
 - MIL-STD-2525D (current standard) symbol shapes differ slightly from
   APP-6A (legacy). This specification targets APP-6A for recognisability;
-  DD-001 will document the choice.
+  DD-003 documents the choice. *(Revised 2026-11-10: said DD-001.)*
 - MGRS grid is preferred over lat/long grid because it is the NATO
   standard for tactical map referencing.

@@ -1,12 +1,17 @@
 ---
 date: 2026-11-08
+updated: 2026-11-10
 ---
 
 # DEVELOPING — working in moving-map-display
 
 ## Golden rules
 
-- **Zero external dependencies** — only `std` is used. No `egui`, no `reqwest`, no `serde`.
+- **Zero external dependencies** — only `std` is used. No `egui`, no `reqwest`, no `serde`
+  (DD-001; whether to allow *vendored* crates is a ⚖ in `PLAN.md`).
+- **The target has one-way download from approved sites only** and DIS on the
+  local LAN. Never add code that fetches from the internet at run time without an
+  explicit, configured allowlist.
 - **Reference `~/Projects/standards/`** for conventions, never fork.
 - **Read from disk before writing**: `~/Projects/standards/BOBBYC_STYLE.md`,
   `~/Projects/standards/SCRIPTING.md`, `~/Projects/standards/CHANGE-REQUESTS.md`.
@@ -52,23 +57,21 @@ Local cache directory (flat file tree)
 
 ### Cache layout
 
-> **Clarification 2026-11-10:** the code writes `<root>/cache.{z}/{x}/{y}.png`
-> (`src/cache/manager.rs:29`), not the `cache/tiles/` tree shown below — see
-> `PLAN.md`, Discrepancies #6.
-
-Tiles are stored in a flat directory indexed by `z/x/y.png`:
+*Revised 2026-11-10: the earlier `cache/tiles/z/x/y.png` tree did not match the
+code.* `TileCache` (`src/cache/manager.rs:29`) writes one directory per zoom
+level under the cache root, written to `.tmp` then renamed, with a sentinel
+marking each complete tile:
 
 ```
-cache/tiles/
-  12/
+tile-cache/                 # root: cache-gen's positional argument, default tile-cache
+  cache.12/
     1024/
       2048.png
-      2049.png
-    1025/
-      2048.png
-  13/
+      2048.png.downloaded   # sentinel: tile complete
+  cache.13/
     2048/
       4096.png
+      4096.png.downloaded
 ```
 
 ### Mission area calculation
@@ -77,24 +80,19 @@ A 25 NM mission range at the target zoom level gives:
 - Zoom 13: ~48 tiles per side (144 tiles total)
 - Zoom 15: ~153 tiles per side (23,409 tiles total)
 
-For a 500 NM maximum-range helicopter, the cache can be generated per-leg
+For a 200 NM design-range helicopter (500 NM is the display zoom limit, UN-003 —
+revised 2026-11-10 per SESSION-STATUS.md), the cache can be generated per-leg
 rather than storing the entire globe — only tiles within the mission
 bounding box are downloaded.
 
-### Caching commands (planned, Phase 7)
+### Caching commands
+
+*Revised 2026-11-10:* `cache-gen` exists but writes **1×1 placeholder PNGs** —
+there is no tile fetcher yet (PLAN.md Discrepancies #2). `cache-list` and
+`cache-clear` are not implemented.
 
 ```bash
-# Generate cache from mission parameters
-cargo run -- cache-gen \
-  --lat 45.0 --lon -75.0 \
-  --range-nm 50 --zoom 13 \
-  --output cache/
-
-# List cached tiles
-cargo run -- cache-list
-
-# Clear cache
-cargo run -- cache-clear
+cargo run -- cache-gen --lat 45.0 --lon -75.0 --range-nm 50 --zoom 13 tile-cache
 ```
 
 ### Tile server options
@@ -102,8 +100,11 @@ cargo run -- cache-clear
 | Server | URL | Notes |
 |---|---|---|
 | OSM (Mapnik) | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Standard, always-on |
-| CartoDB Positron | `https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png` | Clean, low-detail |
+| Stamen Toner (via Stadia) | `https://tiles.stadiamaps.com/tiles/stamen_toner/{z}/{x}/{y}.png` | High-contrast. *Revised 2026-11-10: was labelled "CartoDB Positron", which this URL is not* |
 | OSM Topo | `https://tile.opentopomap.org/{z}/{x}/{y}.png` | Topographic relief |
+
+None of these is reachable from the target unless it is on the approved-site
+list (⚖ PLAN.md); any fetcher must take an explicit server allowlist.
 
 ### Offline strategy
 
@@ -114,24 +115,24 @@ downloads.
 
 ## Project structure
 
+*Revised 2026-11-10.*
+
 ```
 src/
   dis/
-    mod.rs          — EntityTable, DisConfig
-    entity.rs       — EntityRecord, Status, Station, Activity, EntityId
-    packet.rs       — PduHeader, EntityStatePdu, EntityDeathPdu, etc.
+    mod.rs          — DisConfig, EntityTable, 12 s timeout
+    entity.rs       — EntityRecord, Status (from Force ID), Station, Activity, EntityId
+    packet.rs       — IEEE 1278.1 header, Entity State, Remove Entity, split_pdus (DD-004)
+    receiver.rs     — std-only UDP receiver: broadcast/unicast/multicast (DD-005)
   map/
-    mod.rs          — (empty, exports projection module)
-    projection.rs   — LatLon, EastingNorthing, UTM forward+inverse
+    projection.rs   — UTM (Krüger series, DD-006), ECEF ↔ WGS84
   render/
-    mod.rs          — (empty, exports nato module)
     nato.rs         — entity_char() for text map NATO symbology
-  app/
-    mod.rs          — (empty, reserved for future GUI state)
-    state.rs        — (empty, reserved)
   cache/
-    mod.rs          — (empty, reserved for tile cache logic)
-main.rs             — CLI entry: demo, parse, entities, cache-* subcommands
+    tile_bounds.rs  — lat/lon ↔ XYZ tiles, MissionArea, auto-zoom
+    manager.rs      — TileCache I/O, TileServer trait, placeholder server
+  app/              — NOT COMPILED: no `mod app;` in main.rs (PLAN.md #8)
+main.rs             — CLI: listen, demo, entities, parse, parse-stdin, cache-gen
 ```
 
 ## Adding a new PDU type
@@ -149,18 +150,16 @@ main.rs             — CLI entry: demo, parse, entities, cache-* subcommands
 
 ## UTM projection notes
 
-The forward projection uses standard EPSG formulas. The inverse uses an
-iterative Newton method on the meridional arc — accurate to ~50 m for
-mid-latitude points. For display purposes this is sufficient; higher
-accuracy would require additional series terms.
+*Revised 2026-11-10 (DD-006).* Forward and inverse use the **Krüger series**
+(Karney 2011, to n⁴) — sub-millimetre within a zone; the requirement is 10 cm
+round trip, proven by `utm_round_trip_within_10_cm`. DIS positions arrive as
+geocentric ECEF and are converted by `ecef_to_geodetic` (iterative, sub-mm).
 
-## Planned next phase (requires network access)
+## Next work
 
-1. Add `egui` + `eframe` dependencies for GUI.
-2. Implement `dis::receiver` with UDP multicast socket.
-3. Wire DIS receiver → entity table → egui painter for live map.
-4. Add click-to-select entity info panel.
-5. Add zoom/pan controls.
+*Revised 2026-11-10: the receiver is built (DD-005), std-only.* Remaining, in
+`PLAN.md` order: entity-type → symbol mapping for the new civilian and animal
+types; then a GUI, which needs a dependency decision first (⚖ vendored crates).
 
 ## Testing
 
