@@ -170,7 +170,7 @@ local LAN. The dev machine having internet does not make crates or tile
 servers available on the target.
 
 **⚖ Decisions for Bobby, in order:**
-1. **DIS site settings** — port (**3800** default, Bobby 2026-11-10 — still must match the simulators), broadcast or multicast group, exercise ID. Needs the simulators' configuration.
+1. **DIS site settings** — port (**3800** default, Bobby 2026-11-10 — still must match the simulators), exercise ID **1** (Bobby, DD-008). Open: broadcast or multicast group (239.238.237.236 proposed) — needs the simulators' configuration.
 2. **Dependency policy (revisits DD-001)** — DD-001's premise ("sandbox has no network") no longer holds. Options: stay std-only; or allow crates **vendored into the repo** (`cargo vendor`) so builds never reach crates.io. `egui` would arrive this way.
 3. **Tile source on the target** — which approved site serves tiles, or whether tiles are pre-staged by `cache-gen` on a connected machine and carried in. Either way the fetcher takes an explicit server allowlist with no fallback hosts.
 4. **Real DIS capture** — a few seconds of `.pcap` from the site simulators would replace synthetic test vectors with real ones.
@@ -209,12 +209,12 @@ python3 -m cgf.runner scenarios/ottawa-mixed.json --duration 60
 python3 -m cgf.runner scenarios/load-200.json --fault-truncate 0.05 --fault-seed 7
 # ~/Projects/moving-map-display
 cargo run -- listen --ownship 1.42.1 --range-nm 25
-cargo run -- parse ../Sensors/recordings/ottawa-mixed.bin
+cargo run -- parse tests/data/dis/ottawa-mixed.bin
 ```
 
 **Next here (moving-map):**
 1. Entity type → `Activity` / symbol for every type in ottawa-mixed (Phase 1).
 2. Show a per-entity "stale" marker before the 12 s drop; decode pitch/roll.
-3. Use `Sensors/recordings/*.bin` as `parse` regression tests — copy, or
-   reference by path? (⚖ cross-repo test data).
+3. ~~Recordings as regression tests~~ — done 2026-11-10: copied into
+   `tests/data/dis/` (Bobby: the tests belong to moving-map), 4 tests.
 4. Measure PDU → table latency from the DIS timestamp (REQUIREMENTS §4, < 50 ms).

@@ -7,6 +7,28 @@ date: 2026-11-08
 Newest first from DD-004 on, per `~/Projects/standards/BOBBYC_STYLE.md`;
 DD-001 to DD-003 predate that and stay in their original order below.
 
+## DD-008 — Default exercise ID 1; recordings copied into this repo
+**Date:** 2026-11-10
+**Status:** Decided (Bobby)
+
+### Decision
+- `listen` accepts **exercise 1** by default and counts others as
+  `other-exercise`; `--exercise N` picks another, `--exercise any` accepts all.
+- Sensors' recordings are **copied** into `tests/data/dis/` (630 KB) and
+  decoded by `src/dis/recordings.rs`, not read from `../Sensors`.
+
+### Rationale
+- Exercise 1: Bobby's site value; Sensors already sends 1. Filtering by default
+  means a second exercise on the same LAN cannot leak onto the map.
+- Copy: "the tests are related to moving map, not Sensors" (Bobby). A path into
+  another repo breaks when it moves, is absent on another machine, or
+  re-records; the copy is pinned by commit (README gives provenance).
+
+### Alternatives Considered
+- **Accept all exercises by default** (the DD-005 behaviour): rejected — silent
+  mixing of exercises is worse than a visible `other-exercise` count.
+- **Reference `../Sensors/recordings` by path:** rejected for the reasons above.
+
 ## DD-007 — Default DIS port 3800
 **Date:** 2026-11-10
 **Status:** Decided (Bobby)

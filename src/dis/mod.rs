@@ -3,6 +3,8 @@
 pub mod entity;
 pub mod packet;
 pub mod receiver;
+#[cfg(test)]
+mod recordings;
 
 use std::collections::HashMap;
 use std::time::Instant;
@@ -22,13 +24,14 @@ pub struct DisConfig {
     pub multicast_group: Option<std::net::Ipv4Addr>,
     /// Local interface address for the multicast join; `None` lets the OS pick.
     pub interface: Option<std::net::Ipv4Addr>,
-    /// Accept only this exercise ID; `None` accepts all.
+    /// Accept only this exercise ID; `None` accepts all. Default 1
+    /// (Bobby, 2026-11-10; DD-008).
     pub exercise_id: Option<u8>,
 }
 
 impl Default for DisConfig {
     fn default() -> Self {
-        Self { port: 3800, multicast_group: None, interface: None, exercise_id: None }
+        Self { port: 3800, multicast_group: None, interface: None, exercise_id: Some(1) }
     }
 }
 
@@ -97,9 +100,11 @@ mod tests {
     use crate::map::projection::geodetic_to_ecef;
 
     #[test]
-    fn default_port_is_3800() {
+    fn defaults_port_3800_exercise_1() {
         // DD-007: must match Sensors' default; change both together.
         assert_eq!(DisConfig::default().port, 3800);
+        // DD-008: exercise 1 by default.
+        assert_eq!(DisConfig::default().exercise_id, Some(1));
     }
 
     #[test]

@@ -230,7 +230,7 @@ fn print_usage() {
     eprintln!("  cache-gen      Write placeholder map tiles for a mission area");
     eprintln!("  listen         Receive DIS from the LAN and draw the live map");
     eprintln!("                 [--port 3800] [--group 239.1.2.3] [--iface 10.0.0.5]");
-    eprintln!("                 [--exercise N] [--ownship s.a.e] [--lat F --lon F]");
+    eprintln!("                 [--exercise 1|N|any] [--ownship s.a.e] [--lat F --lon F]");
     eprintln!("                 [--range-nm 25] [--seconds N]");
 }
 
@@ -357,7 +357,12 @@ fn run_listen(args: &[String]) {
     if let Some(port) = flag_or_exit(args, "--port") { cfg.port = port; }
     cfg.multicast_group = flag_or_exit(args, "--group");
     cfg.interface = flag_or_exit(args, "--iface");
-    cfg.exercise_id = flag_or_exit(args, "--exercise");
+    // Default exercise 1 (DD-008); `--exercise any` accepts every exercise.
+    match parse_flag(args, "--exercise").as_deref() {
+        None => {}
+        Some("any") => cfg.exercise_id = None,
+        Some(_) => cfg.exercise_id = flag_or_exit(args, "--exercise"),
+    }
     let range_nm: f64 = flag_or_exit(args, "--range-nm").unwrap_or(25.0);
     let seconds: u64 = flag_or_exit(args, "--seconds").unwrap_or(0);
     let fixed_centre: Option<(f64, f64)> = match (flag_or_exit(args, "--lat"), flag_or_exit(args, "--lon")) {

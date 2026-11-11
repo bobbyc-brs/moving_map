@@ -5,6 +5,23 @@ rewritten — a later entry corrects an earlier one.
 
 ---
 
+## 2026-11-10 — Recordings as regression tests; exercise 1 by default (DD-008)
+
+**Tested:** `src/dis/recordings.rs` over the four `.bin` files copied from
+Sensors `0e3c036` into `tests/data/dis/`; the new `DisConfig` default.
+
+**Results:**
+- `cargo test`: **50/50 passing** (was 46; 4 recording tests added).
+- Each recording: every PDU decodes, no framing error, every Entity State is
+  country 39, and the counts are pinned — lifecycle 237 / 5, load-200
+  3 020 / 200, ottawa-mixed 541 / 13, zone-crossing 541 / 5 (Entity State /
+  Remove), matching the 2026-11-10 entries below.
+- Default `exercise_id = Some(1)` pinned by `defaults_port_3800_exercise_1`.
+
+**Method:** measured.
+
+---
+
 ## 2026-11-10 — Default port 3800 end to end (DD-007)
 
 **Tested:** Sensors `0c9520f`/`4d1bda0` (`DEFAULT_PORT = 3800`) `cgf.runner

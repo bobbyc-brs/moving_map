@@ -35,7 +35,7 @@ same day.
    animal types (PLAN Phase 1, REQUIREMENTS FR-003).
 2. Hold ownship's UTM zone across a boundary (`to_utm_zone`, DD-006 gaps) —
    test with Sensors CR-003's zone-crossing scenario.
-3. Use CR-004 recordings as `parse` regression vectors; count faults in `listen`.
+3. ~~Recordings as regression vectors~~ — done (`tests/data/dis/`); still: count faults per kind in `listen`.
 
 ## ⚖ Waiting on Bobby
 
