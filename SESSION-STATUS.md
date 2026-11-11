@@ -4,46 +4,47 @@ date: 2026-11-10
 
 # Session Status — moving-map-display
 
-Hand-off for the next session. Replaces the 2026-11-10 morning note (in git
-history at `96c1a76`), whose next steps and architecture were overtaken the
-same day.
+Hand-off for the next session (written late 2026-11-10). Replaces the
+evening version (in git history).
 
 ## Current state
 
-- **`cargo test`: 45/45 passing.** Evidence in `TESTLOG.md`.
-- **DIS:** IEEE 1278.1 parser (Entity State, Remove Entity; DD-004) and a
-  std-only LAN receiver, `cargo run -- listen` (DD-005). The original parser
-  was not DIS and was rewritten.
-- **Projection:** UTM by Krüger series, 10 cm round trip required and met
-  (< 0.1 mm measured; DD-006). The original UTM code was off by kilometres.
-- **Driven by Sensors:** `~/Projects/Sensors` emits DIS via its gateway
-  (Sensors CR-001, verified both truth-only and with sensed tracks).
-- **Remote:** `origin` = `https://github.com/bobbyc-brs/moving_map.git`,
-  added 2026-11-10, **not yet pushed**.
+- **Touch-screen GUI works** — `cargo run -- gui --ownship 1.42.1` with any
+  Sensors scenario: APP-6A symbols for every DIS type Sensors sends, OSM
+  roads and water underneath (Ottawa area), north-up / track-up, rings,
+  MGRS grid and readout, trails, stale dimming, Day / Dusk / Night.
+  Screenshots in TESTLOG; DD-010, DD-011, DD-012.
+- **`cargo test`: 67/67.** Needs **Rust 1.99.1 from rustup**
+  (`devel-scripts/01-install-rust.sh`); the distro `rustc` 1.80 cannot build it.
+- **UTM zone is held** across a boundary with 0.5° hysteresis (`gui::view`).
+- **Pushed** to `github.com/bobbyc-brs/moving_map` (remote is SSH).
+- DIS defaults: port **3800**, exercise **1**, broadcast (DD-007 – DD-009).
 
-## Done today with Sensors
+## Shell note
 
-- **Sensors CR-001 → CR-004: Processed and verified here** (TESTLOG
-  2026-11-10): DIS gateway, CGF scenario files (`ottawa-mixed`, `lifecycle`,
-  `load-200`, `zone-crossing`), ownship helicopter `1.42.1`, mixed entity types
-  and sides (incl. cars, trucks, school buses, horses), fault injection,
-  pcap/raw recordings, multicast. Run commands in `PLAN.md`.
+This Claude session's PATH predates rustup, so plain `cargo` here is the old
+`/usr/bin/cargo`. Scripts call `~/.cargo/bin/cargo` explicitly. A fresh login
+shell (or `source ~/.cargo/env`) fixes PATH.
 
 ## Next here
 
-1. Map DIS entity types → `Activity` / symbols, incl. the new civilian and
-   animal types (PLAN Phase 1, REQUIREMENTS FR-003).
-2. Hold ownship's UTM zone across a boundary (`to_utm_zone`, DD-006 gaps) —
-   test with Sensors CR-003's zone-crossing scenario.
-3. ~~Recordings as regression vectors~~ — done (`tests/data/dis/`); still: count faults per kind in `listen`.
+See `PLAN.md`, *Update 2026-11-10 (late)*: declutter; frame rate with
+load-200; basemap polish (filled lakes, names, more areas); latency; try the
+real touch screen; offline build from the vendor tarball.
+
+## Waiting on Sensors
+
+**CR-005** (`57496cd`): symbol gallery, ownship manoeuvres, dead-reckoning
+send policy, pcap replay, demo tour. Session `sensors-71` was told.
 
 ## ⚖ Waiting on Bobby
 
-See `PLAN.md`, *⚖ Decisions*: DIS site settings (port, multicast, exercise),
-dependency policy (std-only vs vendored crates — gates the GUI), basemap scope
-(tiles vs vector-only), a real simulator capture.
+Production road source (simulator terrain DB vs OSM); satellite-imagery source
+with an offline-caching licence (if wanted); chart and elevation formats
+(future); a real simulator capture.
 
 ## Standards
 
 `~/Projects/standards/` — reference only, never fork: `BOBBYC_STYLE.md`,
-`SCRIPTING.md`, `CHANGE-REQUESTS.md`.
+`SCRIPTING.md`, `CHANGE-REQUESTS.md`. Multi-step shell work goes in
+`devel-scripts/` as named scripts.
