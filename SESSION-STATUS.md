@@ -21,13 +21,13 @@ same day.
 - **Remote:** `origin` = `https://github.com/bobbyc-brs/moving_map.git`,
   added 2026-11-10, **not yet pushed**.
 
-## In flight
+## Done today with Sensors
 
-- **Sensors CR-002 → CR-004: Processed and verified** (TESTLOG). Filed 2026-11-10, handed to the Sensors
-  session): scenario files, ownship helicopter, mixed entity types and sides
-  (incl. cars, trucks, school buses, horses), lifecycle / 200-entity load /
-  zone-crossing scenarios, fault injection, pcap recording, multicast. When
-  each is Processed, re-run its acceptance here and log it in `TESTLOG.md`.
+- **Sensors CR-001 → CR-004: Processed and verified here** (TESTLOG
+  2026-11-10): DIS gateway, CGF scenario files (`ottawa-mixed`, `lifecycle`,
+  `load-200`, `zone-crossing`), ownship helicopter `1.42.1`, mixed entity types
+  and sides (incl. cars, trucks, school buses, horses), fault injection,
+  pcap/raw recordings, multicast. Run commands in `PLAN.md`.
 
 ## Next here
 
