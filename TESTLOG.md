@@ -5,6 +5,24 @@ rewritten — a later entry corrects an earlier one.
 
 ---
 
+## 2026-11-10 — Default port 3800 end to end (DD-007)
+
+**Tested:** Sensors `0c9520f`/`4d1bda0` (`DEFAULT_PORT = 3800`) `cgf.runner
+scenarios/ottawa-mixed.json --duration 15` into `listen --ownship 1.42.1`
+(`c622a43`), **neither given `--port`**.
+
+**Results:**
+- `listen` bound UDP **:3800**; runner sent **285 datagrams / 285 PDUs**,
+  `listen` received **285 / 285, malformed 0**; 13 tracked, **13 → 0** on the
+  runner's Remove Entity at exit. Nothing left running.
+- Resolves the 37-PDU split question in the entry below: **4 339 Entity State /
+  223 Remove** is right; the Sensors CR-004 addendum had an addition error
+  (corrected in Sensors `4d1bda0`).
+
+**Method:** measured. Sensors' own run of the same check: 301 / 301, 0 malformed.
+
+---
+
 ## 2026-11-10 — Sensors recordings regenerated with country 39
 
 **Tested:** Sensors `0e3c036` (country fix, recordings regenerated) with `parse`.
