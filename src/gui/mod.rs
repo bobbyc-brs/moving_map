@@ -4,6 +4,7 @@
 //! optional side panel with the entity list or the selected entity's details.
 //! Touch: tap selects an entity or drops a mark; drag pans; pinch zooms.
 
+mod basemap_layer;
 mod draw;
 pub mod feed;
 pub mod view;
@@ -48,6 +49,8 @@ pub struct GuiOptions {
     pub scheme: Scheme,
     /// Open the entity list at start.
     pub list: bool,
+    /// Vector basemap, already loaded (DD-012).
+    pub basemap: Option<crate::map::basemap::Basemap>,
 }
 
 pub fn run(opts: GuiOptions) -> eframe::Result {
@@ -92,13 +95,18 @@ struct MapApp {
     last_trail: Instant,
     screenshot_requested: bool,
     screenshot_done: Arc<Mutex<Option<Result<(), String>>>>,
+    basemap: Option<basemap_layer::Layer>,
+    show_basemap: bool,
 }
 
 impl MapApp {
-    fn new(ctx: &egui::Context, opts: GuiOptions, shared: Arc<Mutex<feed::Shared>>) -> Self {
+    fn new(ctx: &egui::Context, mut opts: GuiOptions, shared: Arc<Mutex<feed::Shared>>) -> Self {
         touch_style(ctx);
         let list = opts.list;
+        let basemap = opts.basemap.take().map(basemap_layer::Layer::new);
         Self {
+            show_basemap: basemap.is_some(),
+            basemap,
             range_nm: opts.range_nm,
             track_up: opts.track_up,
             scheme: opts.scheme,
@@ -279,6 +287,9 @@ impl MapApp {
                     self.pan_centre = None;
                 }
                 ui.separator();
+                if self.basemap.is_some() {
+                    toggle(ui, &mut self.show_basemap, "Map");
+                }
                 toggle(ui, &mut self.show_rings, "Rings");
                 toggle(ui, &mut self.show_grid, "Grid");
                 toggle(ui, &mut self.show_trails, "Trails");
@@ -400,6 +411,25 @@ impl MapApp {
             }
         }
 
+        if self.show_basemap {
+            if let Some(layer) = self.basemap.as_mut() {
+                let wake = ui.ctx().clone();
+                match layer.get(zone, move || wake.request_repaint()) {
+                    Some(proj) => {
+                        basemap_layer::draw(&painter, p, &v, rect, &proj);
+                    }
+                    None => {
+                        painter.text(rect.center_bottom() + Vec2::new(0.0, -40.0), Align2::CENTER_CENTER,
+                                     format!("Loading map ({} features)…", layer.feature_count()),
+                                     FontId::proportional(16.0), p.grid_text);
+                    }
+                }
+                if let Some(a) = &layer.attribution {
+                    painter.text(rect.right_bottom() + Vec2::new(-10.0, -30.0), Align2::RIGHT_BOTTOM,
+                                 a, FontId::proportional(12.0), p.grid_text);
+                }
+            }
+        }
         if self.show_grid {
             draw_grid(&painter, p, &v, rect);
         }

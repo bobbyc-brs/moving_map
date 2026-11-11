@@ -10,3 +10,11 @@ description = "Moving map display with DIS entity data and NATO symbology"
 eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "wayland", "x11"] }
 
 [dev-dependencies]
+
+# Debug builds of egui are too slow to draw the basemap (~30 000 polylines);
+# optimise dependencies and lightly optimise this crate even in dev builds.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2

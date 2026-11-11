@@ -58,6 +58,8 @@ pub struct Palette {
     fill_scale: f32,
     /// Multiplier on panel text colours; < 1 also dims all widgets.
     ui_scale: f32,
+    /// Multiplier on basemap line colours.
+    basemap_scale: f32,
 }
 
 impl Palette {
@@ -79,6 +81,7 @@ impl Palette {
                 readout_text: Color32::BLACK,
                 fill_scale: 1.0,
                 ui_scale: 1.0,
+                basemap_scale: 1.0,
             },
             Scheme::Dusk => Self {
                 dark_ui: true,
@@ -96,6 +99,7 @@ impl Palette {
                 readout_text: Color32::from_rgb(225, 225, 225),
                 fill_scale: 0.85,
                 ui_scale: 1.0,
+                basemap_scale: 0.55,
             },
             Scheme::Night => Self {
                 dark_ui: true,
@@ -113,8 +117,27 @@ impl Palette {
                 readout_text: Color32::from_rgb(110, 150, 110),
                 fill_scale: 0.4,
                 ui_scale: 0.45,
+                basemap_scale: 0.3,
             },
         }
+    }
+
+    /// Basemap line style per class (DD-012): roads warm, water blue, rail
+    /// grey; scaled down for Dusk and Night so symbols stay on top visually.
+    pub fn basemap_stroke(&self, c: crate::map::basemap::Class) -> Stroke {
+        use crate::map::basemap::Class;
+        let (rgb, width) = match c {
+            Class::Motorway => ((225, 120, 60), 3.2),
+            Class::Trunk => ((230, 145, 75), 2.8),
+            Class::Primary => ((225, 180, 80), 2.3),
+            Class::Secondary => ((185, 175, 140), 1.7),
+            Class::Tertiary => ((190, 185, 170), 1.2),
+            Class::Rail => ((120, 120, 125), 1.3),
+            Class::River => ((100, 155, 215), 2.0),
+            Class::Water => ((100, 155, 215), 1.5),
+        };
+        let colour = scale(Color32::from_rgb(rgb.0, rgb.1, rgb.2), self.basemap_scale);
+        Stroke::new(width, colour)
     }
 
     /// Dim a UI colour (text, list rows) to suit the scheme.

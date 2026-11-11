@@ -242,6 +242,7 @@ fn print_usage() {
     eprintln!("  gui            Touch-screen moving map (same DIS flags as listen)");
     eprintln!("                 [--ownship s.a.e] [--range-nm 10] [--track-up]");
     eprintln!("                 [--scheme day|dusk|night] [--fullscreen] [--list]");
+    eprintln!("                 [--basemap data/basemap | --no-basemap]");
     eprintln!("                 [--screenshot out.ppm [--after 5]]");
 }
 
@@ -393,6 +394,33 @@ fn centre_from_args(args: &[String]) -> Option<(f64, f64)> {
     }
 }
 
+/// `--basemap <file|dir>`, else `data/basemap/` if present; `--no-basemap` skips it.
+fn load_basemap(args: &[String]) -> Option<map::basemap::Basemap> {
+    if args.iter().any(|a| a == "--no-basemap") {
+        return None;
+    }
+    let path = std::path::PathBuf::from(parse_flag(args, "--basemap").unwrap_or_else(|| "data/basemap".into()));
+    if !path.exists() {
+        eprintln!("No basemap at {} — drawing grid only", path.display());
+        return None;
+    }
+    let loaded = if path.is_dir() {
+        map::basemap::Basemap::load_dir(&path)
+    } else {
+        map::basemap::Basemap::load(&path)
+    };
+    match loaded {
+        Ok(m) => {
+            eprintln!("Basemap {}: {} features ({} lines skipped)", path.display(), m.features.len(), m.skipped);
+            Some(m)
+        }
+        Err(e) => {
+            eprintln!("Error: cannot read basemap {}: {e}", path.display());
+            None
+        }
+    }
+}
+
 fn run_gui(args: &[String]) {
     let scheme = match parse_flag(args, "--scheme").as_deref() {
         None | Some("day") => gui::Scheme::Day,
@@ -414,6 +442,7 @@ fn run_gui(args: &[String]) {
         track_up: args.iter().any(|a| a == "--track-up"),
         scheme,
         list: args.iter().any(|a| a == "--list"),
+        basemap: load_basemap(args),
     };
     if let Err(e) = gui::run(opts) {
         eprintln!("Error: GUI failed: {e}");

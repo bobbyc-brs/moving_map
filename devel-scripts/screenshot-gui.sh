@@ -16,6 +16,7 @@ MAP="$REPO/target/debug/moving-map-display"
 OUT="$REPO/target/shots"
 NAME="$SCENARIO-$(date +%H%M%S)"
 mkdir -p "$OUT"
+cd "$REPO"    # the GUI loads data/basemap/ relative to here
 
 echo "===== build ====="
 "$HOME/.cargo/bin/cargo" build --quiet --manifest-path "$REPO/Cargo.toml"
@@ -26,7 +27,9 @@ echo "===== scenario $SCENARIO on :$PORT ====="
 RUNNER=$!
 
 echo "===== gui, screenshot after ${AFTER}s ====="
-"$MAP" gui --port "$PORT" --ownship 1.42.1 --screenshot "$OUT/$NAME.ppm" --after "$AFTER" "$@"
+# X11 (XWayland), not Wayland: a locked Wayland session sends no frame
+# callbacks, so the window never draws and the screenshot never fires.
+WAYLAND_DISPLAY= "$MAP" gui --port "$PORT" --ownship 1.42.1 --screenshot "$OUT/$NAME.ppm" --after "$AFTER" "$@"
 wait "$RUNNER" || true
 
 echo "===== convert ====="
