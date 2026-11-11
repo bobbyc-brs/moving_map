@@ -152,7 +152,7 @@ code change.
 | # | Status | Ref |
 |---|---|---|
 | 1 | Done — `parse <file>` fixed | commit `cb76995` |
-| 2 | Open — placeholder tiles remain; see ⚖ 3 below | |
+| 2 | Open, lower priority — placeholder tiles remain; tiles are now only an optional backdrop | DD-009 |
 | 3 | Done — Entity Detection was not a DIS PDU; removed | DD-004 |
 | 4 | Done — replaced by Krüger series; 10 cm proven (< 0.1 mm measured) | DD-006, commit `231b97c` |
 | 5 | Done — confirmed non-standard (measured against Wireshark + Open-DIS source); parser rewritten | DD-004, TESTLOG 2026-11-10 |
@@ -170,9 +170,9 @@ local LAN. The dev machine having internet does not make crates or tile
 servers available on the target.
 
 **⚖ Decisions for Bobby, in order:**
-1. **DIS site settings** — port (**3800** default, Bobby 2026-11-10 — still must match the simulators), exercise ID **1** (Bobby, DD-008). Open: broadcast or multicast group (239.238.237.236 proposed) — needs the simulators' configuration.
+1. **DIS site settings** — port (**3800** default, Bobby 2026-11-10 — still must match the simulators), exercise ID **1** (Bobby, DD-008), **broadcast** by default — what Bobby typically sees (DD-009); multicast optional via `--group` (239.238.237.236 if a site wants one). Confirm against the site simulators.
 2. **Dependency policy (revisits DD-001)** — DD-001's premise ("sandbox has no network") no longer holds. Options: stay std-only; or allow crates **vendored into the repo** (`cargo vendor`) so builds never reach crates.io. `egui` would arrive this way.
-3. **Tile source on the target** — which approved site serves tiles, or whether tiles are pre-staged by `cache-gen` on a connected machine and carried in. Either way the fetcher takes an explicit server allowlist with no fallback hosts.
+3. ~~Basemap scope~~ — decided (DD-009): **vector roads main, raster tiles an optional faded backdrop**, both pre-staged. Still open: **road data source** — the site simulators' terrain database (best match to where sim vehicles drive) or an OpenStreetMap extract from an approved site; and the tile site, if tiles are wanted at all.
 4. **Real DIS capture** — a few seconds of `.pcap` from the site simulators would replace synthetic test vectors with real ones.
 
 **Also pending:** an Open-DIS (PyPI) cross-check was blocked by the session's

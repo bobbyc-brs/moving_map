@@ -34,7 +34,9 @@ standard **NATO APP-6A** symbology. DIS is the sole source of positional data.
 ### 1.2  Out of scope
 
 - Two-way DIS — the application is **receive-only** for entity data.
-- Terrain or satellite imagery basemaps — vector grid lines only.
+- Terrain or satellite imagery basemaps. *Revised 2026-11-10 (Bobby, DD-009):*
+  **vector roads** are in scope as the main basemap layer; raster tiles only
+  as an optional, faded backdrop.
 - Multi-platform / fleet view — single ownship at a time.
 - Replay / recording of DIS traffic.
 - Networking configuration UI — DIS multicast address and port are
@@ -143,13 +145,17 @@ Discrepancies #5.*
 
 - **Rust 2021 edition** (or latest stable LTS).
 - **Linux x86_64 only** — Wayland or X11 windowing.
-- **No network access** beyond DIS UDP multicast — no HTTP, no DNS.
-- **Single binary** — no plugin system, no external data files.
+- **No network access at run time** beyond DIS on the LAN (broadcast by default,
+  multicast optional) — no HTTP, no DNS.
+- **Single binary** — no plugin system. *Revised 2026-11-10 (DD-009):* basemap
+  data (vector roads, optional tiles) are external files, pre-staged from an
+  approved site by the one-way download — never fetched at run time.
 - ⚖ *Noted 2026-11-10 — conflicts with work already done: the tile cache
   (`src/cache/`, `cache-gen`) assumes downloaded map tiles held as external
   files, while this section and §1.2 say "vector grid only, no external data
   files, no HTTP". The deployed target allows one-way download from approved
   sites only. Bobby to decide whether basemap tiles are in scope (PLAN.md ⚖).*
+  *Decided 2026-11-10 — DD-009.*
 - **No graphical assets** — all symbology drawn programmatically.
 
 ## 6.  Assumptions

@@ -7,6 +7,38 @@ date: 2026-11-08
 Newest first from DD-004 on, per `~/Projects/standards/BOBBYC_STYLE.md`;
 DD-001 to DD-003 predate that and stay in their original order below.
 
+## DD-009 — Basemap: vector roads first, raster tiles an optional backdrop; DIS broadcast by default
+**Date:** 2026-11-10
+**Status:** Decided (Bobby)
+
+### Decision
+- The basemap's main layer is **vector roads**, projected through the same
+  lat/lon → UTM → screen path as entities. **Raster tiles** are an optional,
+  faded backdrop. Both are pre-staged files from an approved site (one-way
+  download), never fetched at run time.
+- DIS input is **broadcast** by default (Bobby: "I typically see DIS
+  broadcasts"); `--group` joins a multicast group when a site uses one.
+  Unchanged from DD-005's default — now a decision, not an assumption.
+
+### Rationale
+- Vector roads share the entities' projection, so they align to well under a
+  metre, stay sharp at any range, keep labels upright in heading-up, and are
+  the data future road-following needs. Raster tiles are Web Mercator pictures:
+  they must be warped to sit on a UTM display, labels rotate with heading-up,
+  and roads are only pixels.
+- The larger alignment risk is the *source*, not the format: sim vehicles drive
+  on the simulator's terrain-database roads. If the map's roads come from
+  elsewhere, vehicles can sit metres to tens of metres off the drawn road.
+  Hence the open ⚖ on road data source (PLAN).
+- Supersedes REQUIREMENTS §1.2 "vector grid lines only" and §5 "no external
+  data files" for basemap data.
+
+### Alternatives Considered
+- **Raster tiles as the main layer:** rejected — misalignment, rotating labels,
+  no road geometry.
+- **Grid only (original REQUIREMENTS):** rejected — operator needs roads for context.
+- **Multicast by default:** rejected — not what Bobby sees on DIS sites.
+
 ## DD-008 — Default exercise ID 1; recordings copied into this repo
 **Date:** 2026-11-10
 **Status:** Decided (Bobby)
