@@ -20,7 +20,9 @@ cargo test           # run tests
 cargo run -- demo    # text map demo
 cargo run -- entities                # seeded entity table only
 cargo run -- parse-stdin < file.bin  # parse DIS PDUs from stdin
-cargo run -- parse file.bin          # broken 2026-11-10 — see PLAN.md, Discrepancies #1
+cargo run -- parse file.bin          # parse DIS PDUs from a file
+cargo run -- listen --port 3000 --ownship 1.1.1     # live DIS from the LAN (Ctrl-C to stop)
+cargo run -- listen --port 3000 --group 239.1.2.3 --exercise 1 --seconds 30
 cargo run -- cache-gen --lat 45.0 --lon -75.0 --range-nm 100 tile-cache   # placeholder tiles only (#2)
 ```
 
@@ -138,6 +140,12 @@ main.rs             — CLI entry: demo, parse, entities, cache-* subcommands
 2. Add `parse()` method.
 3. Add `PduType` enum variant if needed (currently matched by `pdu_type` value).
 4. Add unit test with a known-good PDU byte blob.
+
+> **Clarification 2026-11-10 (DD-004):** take offsets from IEEE 1278.1 or a
+> reference implementation (Wireshark `packet-dis.c`, Open-DIS), never by
+> inventing them — all fields are big-endian. Add the type to `pdu_type`, a
+> variant to `Pdu`, a case in `parse_pdu`, and an `encode::` helper so tests
+> can build it field by field.
 
 ## UTM projection notes
 

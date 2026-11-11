@@ -8,10 +8,10 @@ mod render;
 use std::env;
 use std::fs;
 use std::io::{self, Read};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use dis::entity::{Activity, EntityId, EntityRecord, Status};
-use dis::packet::{EntityDeathPdu, EntityStatePdu, EntityRecreationPdu, PduHeader};
+use dis::packet::{parse_pdu, split_pdus, Pdu};
 use render::nato::entity_char;
 
 // ---------------------------------------------------------------------------
@@ -216,42 +216,6 @@ fn render_entity_table(entities: &[EntityRecord]) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// PDU processing
-// ---------------------------------------------------------------------------
-
-fn process_pdu(buf: &[u8]) -> Result<String, String> {
-    let header = PduHeader::parse(buf).map_err(|e| format!("Header: {e:?}"))?;
-
-    match header.pdu_type {
-        1 => {
-            let pdu = EntityStatePdu::parse(buf).map_err(|e| format!("EntityState: {e:?}"))?;
-            Ok(format!(
-                "Entity State [{}.{}.{}]  lat={:.4}  lon={:.4}  alt={:.0}m  spd={:.1}m/s  hdg={:.1}°\n  station={:?}  activity={:?}  marking=0x{:04X}",
-                pdu.entity_id.site, pdu.entity_id.application, pdu.entity_id.entity,
-                pdu.latitude, pdu.longitude, pdu.altitude,
-                pdu.velocity_magnitude(), pdu.heading_degrees(),
-                pdu.station(), pdu.activity(), pdu.marking))
-        }
-        2 => {
-            let pdu = EntityDeathPdu::parse(buf).map_err(|e| format!("EntityDeath: {e:?}"))?;
-            Ok(format!(
-                "Entity Death [{}.{}.{}]  cause={}  area_id={}",
-                pdu.entity_id.site, pdu.entity_id.application, pdu.entity_id.entity,
-                pdu.cause, pdu.area_or_object_id))
-        }
-        4 => {
-            let pdu = EntityRecreationPdu::parse(buf).map_err(|e| format!("EntityRecreation: {e:?}"))?;
-            Ok(format!(
-                "Entity Recreation [{}.{}.{}]  type={}  lat={:.4}  lon={:.4}  alt={:.0}m",
-                pdu.site, pdu.application, pdu.entity,
-                pdu.entity_type, pdu.latitude, pdu.longitude, pdu.altitude))
-        }
-        5 => Ok("Entity Detection PDU (type 5)".into()),
-        _ => Ok(format!("PDU type {} (unhandled)", header.pdu_type)),
-    }
-}
-
-// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -263,7 +227,11 @@ fn print_usage() {
     eprintln!("  parse <file>   Parse DIS PDUs from a binary file");
     eprintln!("  parse-stdin    Parse DIS PDUs from stdin");
     eprintln!("  entities       Display seeded entity table");
-    eprintln!("  cache-gen      Download map tiles for a mission area");
+    eprintln!("  cache-gen      Write placeholder map tiles for a mission area");
+    eprintln!("  listen         Receive DIS from the LAN and draw the live map");
+    eprintln!("                 [--port 3000] [--group 239.1.2.3] [--iface 10.0.0.5]");
+    eprintln!("                 [--exercise N] [--ownship s.a.e] [--lat F --lon F]");
+    eprintln!("                 [--range-nm 25] [--seconds N]");
 }
 
 fn main() {
@@ -299,6 +267,7 @@ fn main() {
         }
         Some("entities") => run_entity_table(),
         Some("cache-gen") => run_cache_gen(&args[2..]),
+        Some("listen") => run_listen(&args[2..]),
         Some(arg) => {
             eprintln!("Unknown command: {}", arg);
             print_usage();
@@ -321,39 +290,130 @@ fn run_entity_table() {
     println!("{}", render_entity_table(&entities));
 }
 
+
+// ---------------------------------------------------------------------------
+// PDU processing
+// ---------------------------------------------------------------------------
+
+fn describe_pdu(pdu: &Pdu) -> String {
+    match pdu {
+        Pdu::EntityState(p) => {
+            let (lat, lon, alt) = p.geodetic();
+            format!(
+                "Entity State [{}]  ex={}  force={}  type={}  marking={:?}\n    \
+                 lat={:.6}  lon={:.6}  alt={:.1}m  spd={:.1}m/s  hdg={:.1}°",
+                p.entity_id.display(), p.header.exercise_id, p.force_id,
+                p.entity_type.display(), p.marking,
+                lat, lon, alt, p.speed(), p.heading_degrees())
+        }
+        Pdu::RemoveEntity(p) => format!(
+            "Remove Entity [{}]  ex={}  request={}",
+            p.receiving.display(), p.header.exercise_id, p.request_id),
+        Pdu::Other(h) => format!(
+            "PDU type {} family {} ({} bytes) — not decoded", h.pdu_type, h.protocol_family, h.length),
+    }
+}
+
 fn parse_file(data: &[u8]) {
     println!("DIS PDU Parser — {} bytes", data.len());
     println!("────────────────────────────────────────────");
 
-    let mut offset = 0;
-    let mut pdu_count = 0;
-    while offset + 12 <= data.len() {
-        let header = match PduHeader::parse(&data[offset..]) {
-            Ok(h) => h,
-            Err(e) => {
-                eprintln!("  Offset {}: Header parse error: {:?}", offset, e);
-                break;
-            }
-        };
-
-        let end = offset + header.length as usize;
-        if end > data.len() {
-            eprintln!("  Offset {}: PDU extends beyond data ({} > {})", offset, end, data.len());
-            break;
-        }
-
-        let pdu_data = &data[offset..end];
-        match process_pdu(pdu_data) {
-            Ok(info) => println!("  Offset {}: {}", offset, info),
+    let (pdus, end) = split_pdus(data);
+    for (offset, bytes) in &pdus {
+        match parse_pdu(bytes) {
+            Ok(pdu) => println!("  Offset {}: {}", offset, describe_pdu(&pdu)),
             Err(e) => println!("  Offset {}: {}", offset, e),
         }
-
-        offset = end;
-        pdu_count += 1;
+    }
+    if let Err((offset, e)) = end {
+        eprintln!("  Offset {}: {}", offset, e);
     }
 
     println!("────────────────────────────────────────────");
-    println!("Processed {} bytes → {} PDUs", data.len(), pdu_count);
+    println!("Processed {} bytes → {} PDUs", data.len(), pdus.len());
+}
+
+// ---------------------------------------------------------------------------
+// Listen: live DIS from the LAN
+// ---------------------------------------------------------------------------
+
+fn parse_entity_id(s: &str) -> Option<EntityId> {
+    let parts: Vec<u16> = s.split('.').map(|p| p.parse().ok()).collect::<Option<_>>()?;
+    match parts[..] {
+        [site, app, ent] => Some(EntityId::new(site, app, ent)),
+        _ => None,
+    }
+}
+
+fn flag_or_exit<T: std::str::FromStr>(args: &[String], flag: &str) -> Option<T> {
+    parse_flag(args, flag).map(|v| v.parse().unwrap_or_else(|_| {
+        eprintln!("Error: invalid value for {}: {}", flag, v);
+        std::process::exit(1);
+    }))
+}
+
+fn run_listen(args: &[String]) {
+    let mut cfg = dis::DisConfig::default();
+    if let Some(port) = flag_or_exit(args, "--port") { cfg.port = port; }
+    cfg.multicast_group = flag_or_exit(args, "--group");
+    cfg.interface = flag_or_exit(args, "--iface");
+    cfg.exercise_id = flag_or_exit(args, "--exercise");
+    let range_nm: f64 = flag_or_exit(args, "--range-nm").unwrap_or(25.0);
+    let seconds: u64 = flag_or_exit(args, "--seconds").unwrap_or(0);
+    let fixed_centre: Option<(f64, f64)> = match (flag_or_exit(args, "--lat"), flag_or_exit(args, "--lon")) {
+        (Some(lat), Some(lon)) => Some((lat, lon)),
+        _ => None,
+    };
+    let ownship = parse_flag(args, "--ownship").map(|s| parse_entity_id(&s).unwrap_or_else(|| {
+        eprintln!("Error: --ownship takes site.application.entity, got {}", s);
+        std::process::exit(1);
+    }));
+
+    let mut receiver = dis::receiver::Receiver::bind(&cfg).unwrap_or_else(|e| {
+        eprintln!("Error: cannot listen on UDP port {}: {}", cfg.port, e);
+        std::process::exit(1);
+    });
+    let mut table = dis::EntityTable::new();
+    let start = Instant::now();
+    let mut last_draw = Instant::now() - Duration::from_secs(1);
+
+    loop {
+        match receiver.poll(Duration::from_millis(200)) {
+            Ok(pdus) => {
+                let now = Instant::now();
+                for pdu in &pdus { table.apply(pdu, now); }
+            }
+            Err(e) => eprintln!("receive error: {}", e),
+        }
+
+        if last_draw.elapsed() >= Duration::from_secs(1) {
+            last_draw = Instant::now();
+            table.purge_stale(dis::ENTITY_TIMEOUT_SECS);
+            let mut entities: Vec<EntityRecord> = table.iter().cloned().collect();
+            entities.sort_by_key(|e| (e.entity_id.site, e.entity_id.application, e.entity_id.entity));
+
+            let own = ownship.and_then(|id| table.get(id));
+            let centre = own.map(|e| (e.latitude, e.longitude))
+                .or(fixed_centre)
+                .or_else(|| entities.first().map(|e| (e.latitude, e.longitude)));
+            match centre {
+                Some((lat, lon)) => {
+                    let own_id = ownship.unwrap_or(EntityId::new(0, 0, 0));
+                    print!("{}", render_text_map(&entities, own_id, lat, lon, range_nm, 80, 24, true, true));
+                    println!("{}", render_entity_table(&entities));
+                }
+                None => print!("\x1b[2J\x1b[H"),
+            }
+            let s = receiver.stats;
+            println!("UDP :{}  datagrams={}  pdus={}  malformed={}  other-exercise={}  tracked={}",
+                cfg.port, s.datagrams, s.pdus, s.malformed, s.other_exercise, table.len());
+            if centre.is_none() { println!("Waiting for Entity State PDUs…"); }
+        }
+
+        if seconds > 0 && start.elapsed() >= Duration::from_secs(seconds) {
+            break;
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

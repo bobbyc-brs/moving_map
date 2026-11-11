@@ -4,6 +4,72 @@ date: 2026-11-08
 
 # Decisions — moving-map-display
 
+Newest first from DD-004 on, per `~/Projects/standards/BOBBYC_STYLE.md`;
+DD-001 to DD-003 predate that and stay in their original order below.
+
+## DD-005 — Live DIS receiver: std-only UDP on the LAN
+**Date:** 2026-11-10
+**Status:** Decided
+
+### Decision
+Receive DIS with **`std::net::UdpSocket` only**, bound to `0.0.0.0:<port>`,
+accepting broadcast and unicast, and joining one IPv4 multicast group when
+`--group` is given (`src/dis/receiver.rs`). Each datagram is split into PDUs
+by header length, so v7 bundles work. Entities not heard for **12 s** are
+dropped (IEEE 1278.1 default heartbeat 5 s × multiplier 2.4).
+
+### Rationale
+- DIS traffic is on the local LAN (per Bobby, 2026-11-10); nothing leaves it.
+- Needs no crates, so DD-001 still holds and the one-way-download target is unaffected.
+- Loopback tests and a live run prove it end to end — TESTLOG 2026-11-10.
+
+### Alternatives Considered
+- **`tokio` async socket:** rejected for now — one socket, one thread, a 200 ms poll is enough.
+- **Fixed multicast `239.255.1.1:30000`** (the old `DisConfig` default): rejected —
+  invented values; DIS sites commonly use broadcast on port 3000. Default is now
+  port 3000, no group.
+
+### Known Gaps
+- ⚖ Port, broadcast vs multicast, and exercise ID must be confirmed against the simulators on site.
+- No `SO_REUSEADDR` in `std`, so a second listener on the same host and port fails to bind.
+- Dead reckoning is not applied between updates; entities jump at each Entity State PDU.
+
+## DD-004 — DIS wire format follows IEEE 1278.1
+**Date:** 2026-11-10
+**Status:** Decided — supersedes the parser in place before commit `cb76995`
+
+### Decision
+Rewrite `src/dis/packet.rs` to the **IEEE 1278.1 wire format** (versions 6
+and 7): big-endian; header `version, exercise, type, family, timestamp, length,
+status, padding`; Entity State (type 1) at 144 bytes plus 16 per variable
+parameter, location as geocentric ECEF `f64` metres, orientation as ECEF-relative
+Euler angles in radians. Decode **Entity State** and **Remove Entity** (type 12);
+report every other type by number without decoding.
+
+### Rationale
+- The old parser was not DIS: little-endian, wrong header order, fixed-point
+  lat/lon, and invented type numbers (2 "Death", 4 "Recreation", 5 "Detection"
+  are Fire, Collision, and Service Request in the standard). It could not read
+  any real simulator's traffic.
+- Offsets cross-checked against two independent implementations, downloaded
+  2026-11-10: Wireshark `epan/dissectors/packet-dis.c` (type, family, kind and
+  domain enums; big-endian throughout) and Open-DIS `opendis/dis7.py`
+  (field order of header, Entity State, Remove Entity; `'>'` struct packing).
+- A third, separately written encoder (Python `struct`) round-trips exactly
+  through the binary — TESTLOG 2026-11-10.
+
+### Alternatives Considered
+- **Keep the old format as a "simplified DIS":** rejected — no simulator emits it.
+- **Use an Open-DIS crate:** deferred, not rejected — the hand parser is ~200
+  lines for two PDUs; revisit if more PDU types are needed (DD-001 policy).
+
+### Known Gaps
+- Force ID values (1 Friendly, 2 Opposing, 3 Neutral) are from SISO-REF-010
+  UID 6 as recalled; neither downloaded source enumerates them.
+- Entity type → `Activity` needs SISO-REF-010 category tables; every live
+  entity currently shows Activity `?`.
+- Not yet tested against a capture from a real simulator.
+
 ## DD-001 — Zero external dependencies
 
 **Date:** 2026-11-08  **Status:** Final

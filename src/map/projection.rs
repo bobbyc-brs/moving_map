@@ -103,9 +103,67 @@ impl EastingNorthing {
     }
 }
 
+/// WGS84 geodetic (degrees, metres above the ellipsoid) → geocentric ECEF metres.
+pub fn geodetic_to_ecef(lat_deg: f64, lon_deg: f64, h: f64) -> [f64; 3] {
+    let (lat, lon) = (lat_deg.to_radians(), lon_deg.to_radians());
+    let n = WGS84_A / (1.0 - WGS84_E2 * lat.sin() * lat.sin()).sqrt();
+    [
+        (n + h) * lat.cos() * lon.cos(),
+        (n + h) * lat.cos() * lon.sin(),
+        (n * (1.0 - WGS84_E2) + h) * lat.sin(),
+    ]
+}
+
+/// Geocentric ECEF metres (the DIS world frame) → WGS84 latitude (°),
+/// longitude (°), and height above the ellipsoid (m). Fixed-point iteration
+/// on latitude; converges to sub-millimetre in well under 10 rounds.
+pub fn ecef_to_geodetic(x: f64, y: f64, z: f64) -> (f64, f64, f64) {
+    let lon = y.atan2(x);
+    let p = x.hypot(y);
+    let mut lat = z.atan2(p * (1.0 - WGS84_E2));
+    let mut h = 0.0;
+    for _ in 0..10 {
+        let sin_lat = lat.sin();
+        let n = WGS84_A / (1.0 - WGS84_E2 * sin_lat * sin_lat).sqrt();
+        // Use whichever form is well-conditioned: cos→0 near the poles.
+        h = if lat.cos().abs() > 1e-3 {
+            p / lat.cos() - n
+        } else {
+            z / sin_lat - n * (1.0 - WGS84_E2)
+        };
+        lat = z.atan2(p * (1.0 - WGS84_E2 * n / (n + h)));
+    }
+    (lat.to_degrees(), lon.to_degrees(), h)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ecef_known_points() {
+        // Equator / prime meridian: x = semi-major axis.
+        let [x, y, z] = geodetic_to_ecef(0.0, 0.0, 0.0);
+        assert!((x - 6_378_137.0).abs() < 1e-6 && y.abs() < 1e-6 && z.abs() < 1e-6);
+        // North pole: z = semi-minor axis b = a(1 - f) = 6 356 752.314245 m.
+        let [_, _, z] = geodetic_to_ecef(90.0, 0.0, 0.0);
+        assert!((z - 6_356_752.314245).abs() < 1e-5, "b {z}");
+        let (lat, _, h) = ecef_to_geodetic(0.0, 0.0, 6_356_752.314245 + 100.0);
+        assert!((lat - 90.0).abs() < 1e-9 && (h - 100.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn ecef_round_trip_sub_millimetre() {
+        for &(lat, lon, h) in &[(45.4215, -75.6972, 300.0), (-33.9, 151.2, 0.0),
+                                (89.9, 10.0, 5000.0), (0.0, 179.9, -50.0)] {
+            let [x, y, z] = geodetic_to_ecef(lat, lon, h);
+            let (lat2, lon2, h2) = ecef_to_geodetic(x, y, z);
+            // 1e-8° ≈ 1.1 mm of latitude.
+            assert!((lat - lat2).abs() < 1e-8, "lat {lat} vs {lat2}");
+            assert!((lon - lon2).abs() < 1e-8, "lon {lon} vs {lon2}");
+            assert!((h - h2).abs() < 1e-3, "h {h} vs {h2}");
+        }
+    }
 
     #[test]
     fn roundtrip_45n_75w() {

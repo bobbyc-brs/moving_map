@@ -176,3 +176,36 @@ code change.
 | 7 | Both blockers ("no crates.io network", "needs network stack") date from the original sandbox. `std::net::UdpSocket` needs no crates, so Phase 5's receiver is not blocked on network access | DD-001 | Hypothesis — re-check network access on this machine |
 
 ⚖ #5 decides whether this parser can read real DIS traffic at all; worth settling before Phase 5.
+
+## Update 2026-11-10 (later) — DIS rewrite and LAN receiver
+
+**Discrepancies status:**
+
+| # | Status | Ref |
+|---|---|---|
+| 1 | Done — `parse <file>` fixed | commit `cb76995` |
+| 2 | Open — placeholder tiles remain; see ⚖ 3 below | |
+| 3 | Done — Entity Detection was not a DIS PDU; removed | DD-004 |
+| 4 | Open — ±50 m still untested | |
+| 5 | Done — confirmed non-standard (measured against Wireshark + Open-DIS source); parser rewritten | DD-004, TESTLOG 2026-11-10 |
+| 6 | Open — `DEVELOPING.md` cache tree still shows the old layout (clarification note added) | |
+| 7 | Done — network measured available on this dev machine: `index.crates.io` and `tile.openstreetmap.org` both HTTP 200 | |
+| 8 | **New, open** — `src/app/` is not compiled (`main.rs` has no `mod app;`) and would not compile: it calls the absent `log` crate and an old `to_record` signature. Its 2 tests have never run | `src/app/state.rs` |
+
+**Phase 5 receiver: done** (DD-005) — `cargo run -- listen`, std-only UDP,
+broadcast/unicast plus optional multicast join, v7 bundles, exercise filter,
+12 s entity timeout. GUI remains Not started.
+
+**Deployment constraint (Bobby, 2026-11-10):** the target system has
+**one-way download from specific approved sites only**, and DIS arrives on the
+local LAN. The dev machine having internet does not make crates or tile
+servers available on the target.
+
+**⚖ Decisions for Bobby, in order:**
+1. **DIS site settings** — port (3000 assumed), broadcast or multicast group, exercise ID. Needs the simulators' configuration.
+2. **Dependency policy (revisits DD-001)** — DD-001's premise ("sandbox has no network") no longer holds. Options: stay std-only; or allow crates **vendored into the repo** (`cargo vendor`) so builds never reach crates.io. `egui` would arrive this way.
+3. **Tile source on the target** — which approved site serves tiles, or whether tiles are pre-staged by `cache-gen` on a connected machine and carried in. Either way the fetcher takes an explicit server allowlist with no fallback hosts.
+4. **Real DIS capture** — a few seconds of `.pcap` from the site simulators would replace synthetic test vectors with real ones.
+
+**Also pending:** an Open-DIS (PyPI) cross-check was blocked by the session's
+permission rules; the Python `struct` encoder in TESTLOG 2026-11-10 stood in.

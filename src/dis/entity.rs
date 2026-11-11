@@ -9,12 +9,14 @@ pub enum Status {
 }
 
 impl Status {
-    pub fn from_discriminator(bits: u8) -> Self {
-        match bits & 0b11 {
-            0 => Self::Friendly,
-            1 => Self::Hostile,
-            2 => Self::Unknown,
-            _ => Self::Neutral,
+    /// DIS Force ID (SISO-REF-010 UID 6): 1 Friendly, 2 Opposing, 3 Neutral;
+    /// 0 (Other) and anything else display as Unknown.
+    pub fn from_force_id(force_id: u8) -> Self {
+        match force_id {
+            1 => Self::Friendly,
+            2 => Self::Hostile,
+            3 => Self::Neutral,
+            _ => Self::Unknown,
         }
     }
 
