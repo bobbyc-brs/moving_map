@@ -196,3 +196,25 @@ optional (`--dis-fused`) and shows as Unknown (force 0), site 2.
 
 **Open (Bobby's call):** Sensors' heading drift (initial bearing held for the
 whole flight) — fix lives in Sensors `vehicles/vehicle_sim.py`, not here.
+
+## Update 2026-11-10 (night) — Sensors is a CGF
+
+**Sensors CR-002 → CR-004: Processed** and re-verified here (TESTLOG
+2026-11-10, "Sensors CGF scenarios"). Scenarios: `ottawa-mixed`, `lifecycle`,
+`load-200`, `zone-crossing`; ownship `1.42.1` (none in `lifecycle`).
+
+```bash
+# ~/Projects/Sensors
+python3 -m cgf.runner scenarios/ottawa-mixed.json --duration 60
+python3 -m cgf.runner scenarios/load-200.json --fault-truncate 0.05 --fault-seed 7
+# ~/Projects/moving-map-display
+cargo run -- listen --ownship 1.42.1 --range-nm 25
+cargo run -- parse ../Sensors/recordings/ottawa-mixed.bin
+```
+
+**Next here (moving-map):**
+1. Entity type → `Activity` / symbol for every type in ottawa-mixed (Phase 1).
+2. Show a per-entity "stale" marker before the 12 s drop; decode pitch/roll.
+3. Use `Sensors/recordings/*.bin` as `parse` regression tests — copy, or
+   reference by path? (⚖ cross-repo test data).
+4. Measure PDU → table latency from the DIS timestamp (REQUIREMENTS §4, < 50 ms).

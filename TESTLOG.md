@@ -5,6 +5,43 @@ rewritten — a later entry corrects an earlier one.
 
 ---
 
+## 2026-11-10 — Sensors CGF scenarios, faults and recordings (Sensors CR-002 → CR-004)
+
+**Tested:** Sensors `1f3f99a`, `477c126`, `a1e3ac9` (CGF runner, scenarios,
+fault injection, recordings) against `listen` and `parse` on private port 3911.
+Independent re-run of the Sensors agent's acceptance with a scratch script
+(`verify-cr002-004.sh`, not committed).
+
+**Results:**
+- Sensors unit tests: **46/46 passing**.
+- **Recordings** (`Sensors/recordings/*.bin`) decode fully with `parse`, 0
+  errors: lifecycle 242, load-200 3 220, ottawa-mixed 554, zone-crossing 546 PDUs.
+- **Entity types and forces** in ottawa-mixed decode exactly as CR-002 asked:
+  car `1.1.124.81.10`, truck `…83`, bus `…82`, school bus `…82.12`, horse
+  `3.1.124.200.80`, horse with rider `…200.90` (force 0), tanks force 1 and 2,
+  AFV, attack helicopter, patrol craft, airliner `…87` — 13 entities.
+- **ottawa-mixed live**, `--ownship 1.42.1`: 13 tracked, **0 malformed**, all
+  four statuses present (3 A, 2 F, 7 N, 1 U); map centred on HELO1 near Ottawa.
+- **load-200 live:** **200 tracked**; **4 601 PDUs sent, 4 601 received, 0
+  malformed** (Sensors reported 200.1 PDU/s, 7 ms lag); 200 → 0 on exit.
+- **Faults** (truncate 0.05, garbage 0.02, unknown types, seed 7): runner
+  sent 358 datagrams / 335 PDUs with 15 truncated + 8 garbage; `listen`
+  counted **358 / 335 / malformed 23** — exact agreement, no crash, entities
+  kept tracking.
+- **Zone crossing:** map's zone label went **18 → 17** as ownship crossed 78°W.
+
+**Method:** measured. Not re-run here: lifecycle timings, multicast, and the
+full-fault bundle case — reported by the Sensors agent (Sensors CR-003/004 notes).
+
+**Unblocks:** moving-map symbol work for the new types; lifecycle, load and
+zone-crossing tests have a driver.
+
+**Invalidates:** CR-003's own text — it said "Ottawa towards Pembroke"
+crosses 78°W; Pembroke is at ~77.1°W, so it does not. The Sensors agent flew
+near Bancroft/Maynooth instead. The error was the requester's (this repo's).
+
+---
+
 ## 2026-11-10 — UTM projection held to 10 cm (DD-006)
 
 **Tested:** `src/map/projection.rs` after replacing the UTM series with Krüger

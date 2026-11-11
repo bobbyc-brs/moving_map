@@ -23,7 +23,7 @@ same day.
 
 ## In flight
 
-- **Sensors CR-002 → CR-004** (filed 2026-11-10, handed to the Sensors
+- **Sensors CR-002 → CR-004: Processed and verified** (TESTLOG). Filed 2026-11-10, handed to the Sensors
   session): scenario files, ownship helicopter, mixed entity types and sides
   (incl. cars, trucks, school buses, horses), lifecycle / 200-entity load /
   zone-crossing scenarios, fault injection, pcap recording, multicast. When
