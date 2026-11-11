@@ -7,6 +7,155 @@ date: 2026-11-08
 Newest first from DD-004 on, per `~/Projects/standards/BOBBYC_STYLE.md`;
 DD-001 to DD-003 predate that and stay in their original order below.
 
+## DD-012 — First basemap: OpenStreetMap roads and water, pre-staged as a text file
+**Date:** 2026-11-10
+**Status:** Decided for development and demo; the production road source is
+still ⚖ Bobby's (PLAN — simulator terrain database vs OpenStreetMap)
+
+### Decision
+- Bobby: "I don't see a graphic of the area we're flying over." Implements
+  DD-009's main layer: **vector roads** (motorway → tertiary), **railways**,
+  **rivers** and **lakes / wide rivers** as polylines.
+- **Source:** OpenStreetMap via one **Overpass API** query
+  (`devel-scripts/fetch-osm-basemap.sh`), run on a connected machine and
+  converted by `devel-scripts/osm_to_basemap.py` to a plain text file —
+  `data/basemap/ottawa.txt` (44.95–45.75°N, 76.35–75.00°W; 30 282
+  features, 11 MB). The GUI never fetches; it reads `data/basemap/` at start.
+- **Format:** one feature per line, `<class> lat,lon lat,lon …` — readable,
+  diff-able, parsed with `std` (`map::basemap`), no GIS crate.
+- **Drawing:** projected into the held UTM zone once per zone on a
+  background thread, then rotated / scaled per frame; classes drop out by
+  scale (tertiary below 50 m/px, secondary below 120 m/px); ponds under 12 px
+  hidden; roads thinned to ≥ 1.5 px between points. Dimmed for Dusk / Night.
+  Attribution "© OpenStreetMap contributors" drawn on the map (ODbL).
+- The file **is committed** (11 MB text) so a fresh clone shows a map.
+
+### Rationale
+- Same projection path as the entities, so roads and symbols agree to the
+  projection's accuracy (DD-006) plus OSM's own (typically metres).
+- One Overpass query per area is within its fair-use policy; bulk tile
+  downloads would not be (OSM tile policy), nor would most imagery services.
+- Text over a binary format: 11 MB is acceptable, and anyone can inspect it.
+
+### Alternatives Considered
+- **Raster OSM tiles:** rejected as the main layer (DD-009); bulk
+  pre-fetching for offline use breaches the OSM tile usage policy.
+- **Satellite imagery:** deferred — needs a source whose licence allows
+  offline caching, via the approved one-way download (PLAN ⚖).
+- **Geofabrik `.pbf` extract:** deferred — needs a protobuf / zlib reader;
+  Overpass gives a small, targeted area instead.
+
+### Known Gaps
+- **Lakes and rivers are outlines, not filled**; multipolygon pieces are not
+  assembled into rings.
+- **Covers the Ottawa area only** — the zone-crossing scenario (near
+  Bancroft) and most of load-200's 100 NM radius are off the map. Add areas
+  with the fetch script; every `*.txt` in `data/basemap/` is loaded.
+- No road names, no towns, no labels. No terrain or elevation (future, Bobby).
+- OSM roads may not match the simulator's terrain database (DD-009).
+- A dev build needs optimised dependencies (`Cargo.toml` `[profile.dev]`)
+  to draw the map at interactive rates; frame rate not yet measured.
+
+---
+
+## DD-011 — Touch-screen GUI design: APP-6A from the DIS entity type, held UTM zone, true-north display
+**Date:** 2026-11-10
+**Status:** Decided (implementation choices within Bobby's brief: in-flight /
+simulator moving map, touch screen)
+
+### Decision
+- **Symbols come from the DIS entity type** (`render::symbol::classify`):
+  kind + domain pick the APP-6A **frame** (air, ground, sea surface,
+  subsurface); category / subcategory pick the **icon**; force ID picks the
+  **affiliation** colour. Country is ignored.
+- **One held UTM zone** per picture, switching only when ownship is **0.5°**
+  past the zone edge; the display is rotated for **grid convergence**, so
+  north-up means true north and track-up means true heading.
+- **Touch first:** ≥ 48 px controls; tap selects an entity or drops a mark
+  (MGRS, DMS, range / bearing from ownship); drag pans (Centre returns);
+  pinch or scroll zooms; presets 1–500 NM.
+- **Time behaviour:** dead-reckon displayed positions for up to **5 s**;
+  dim a symbol after **7 s** silent (DIS heartbeat is 5 s); drop at 12 s
+  (unchanged). Trails 5 min, sampled every 2 s. Velocity leader = 1 min.
+- **Schemes:** Day, Dusk, Night; Night dims symbols to 40 % and all panel
+  text and widgets to 45 %.
+- **Screenshot mode** (`gui --screenshot f.ppm --after N`) for unattended
+  checks; PPM so no image crate is needed.
+
+### Rationale
+- The old `Station`/`Activity` codes were invented and never sent by any
+  simulator (DD-004); the entity type is what DIS actually carries.
+- Mixing zones would put entities either side of 78°W on different planes;
+  hysteresis stops the grid flipping while flying along a boundary (the
+  zone-crossing scenario does exactly this).
+- Grid north is up to ~2.1° off true north at a zone edge at 45°N — visible
+  against a heading line, so the display corrects for it.
+- 7 s stale threshold: one missed heartbeat plus jitter; dimming before the
+  12 s drop tells the crew a track is ageing rather than having it vanish.
+
+### Alternatives Considered
+- **Hard-coded symbol table per entity:** rejected — breaks on any new type;
+  classification by category ranges degrades to a framed "?" instead.
+- **Web Mercator display:** rejected — scale varies with latitude; UTM is
+  conformal and metric within a zone (DD-002).
+- **Civilian pictograms from MIL-STD-2525C:** deferred — APP-6A has no car,
+  bus or horse icons, so these are local pictograms / text for now.
+
+### Known Gaps
+- **Icons are simplified**, and civilian / animal icons are local extensions,
+  not APP-6A. Echelon, task-force and other modifiers are not drawn.
+- **No declutter** — symbols overlap at long range (seen at 25 NM with 13 entities).
+- MGRS ignores the Norway / Svalbard zone exceptions and the polar UPS areas.
+- Range / bearing readouts use a sphere (≤ 0.5 % error); positions use the ellipsoid.
+- Dead reckoning uses heading and speed only (flat, constant velocity), not
+  the PDU's dead-reckoning algorithm field.
+- Touch gestures were checked with a mouse only; no touch screen here yet.
+
+---
+
+## DD-010 — Dependencies: vendored crates allowed; eframe for the GUI; Rust from rustup
+**Date:** 2026-11-10
+**Status:** Decided (Bobby) — supersedes DD-001's zero-dependency rule
+
+### Decision
+- **Vendored crates are allowed** (Bobby: "Vendored crates are fine, go
+  ahead with the GUI"). The GUI uses **`eframe` 0.37** (egui) with the
+  **glow** (OpenGL) backend, Wayland and X11; ~290 crates in `Cargo.lock`.
+- **`vendor/` is not committed.** `devel-scripts/02-vendor-crates.sh`
+  regenerates it exactly from `Cargo.lock` and packs a tarball for the one-way
+  download; `.cargo/vendor.toml` switches cargo to it
+  (`cargo build --offline --config .cargo/vendor.toml`).
+- **Rust 1.99.1 from rustup**, pinned in `rust-toolchain.toml`;
+  `devel-scripts/01-install-rust.sh` installs it (Bobby agreed to update Rust).
+
+### Rationale
+- A GPU GUI written on `std` alone is not practical; egui is immediate-mode,
+  pure Rust, and draws everything with a painter — symbology stays
+  programmatic (REQUIREMENTS §5).
+- **Size:** `vendor/` is **355 MB**, mostly `windows-sys`, `web-sys` and
+  similar stubs that never compile on Linux; in git it would bloat every
+  clone for no information `Cargo.lock` (with checksums) does not already pin.
+- **Toolchain:** current crates need edition 2024 (Rust ≥ 1.85). The machine
+  had 1.80 (Ubuntu 24.10, end of life); apt's newest is **1.82**. Staying on
+  1.80 meant pinning dozens of crates to old releases, missing fixes.
+- glow over wgpu: fewer crates, and OpenGL is available on any target with a display.
+
+### Alternatives Considered
+- **Stay std-only** (DD-001): rejected by Bobby for the GUI.
+- **Commit `vendor/`:** rejected — 355 MB; deferred, not ruled out, if the
+  site requires the source tree alone to build offline.
+- **Pin crates for Rust 1.80:** tried first; rejected — dozens of
+  downgrades, repeated for every future dependency.
+
+### Known Gaps
+- The offline build path (`02-vendor-crates.sh` → tarball → offline build) is
+  scripted but **not yet run end to end** on a machine without network.
+- The target's Rust toolchain must arrive by the one-way download too (rustup
+  offline installer); not yet tried.
+- Ubuntu 24.10 itself is end of life (packages come from `old-releases`).
+
+---
+
 ## DD-009 — Basemap: vector roads first, raster tiles an optional backdrop; DIS broadcast by default
 **Date:** 2026-11-10
 **Status:** Decided (Bobby)
@@ -183,7 +332,7 @@ report every other type by number without decoding.
 
 ## DD-001 — Zero external dependencies
 
-**Date:** 2026-11-08  **Status:** Final
+**Date:** 2026-11-08  **Status:** Final — *superseded by DD-010 (2026-11-10): vendored crates allowed for the GUI*
 
 **Problem:** The sandbox has no network access, so crates.io downloads are
 impossible. The initial plan targeted `egui`/`eframe` for the GUI.

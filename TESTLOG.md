@@ -5,6 +5,48 @@ rewritten — a later entry corrects an earlier one.
 
 ---
 
+## 2026-11-10 — Touch-screen GUI and basemap (DD-010, DD-011, DD-012)
+
+**Tested:** `cargo run -- gui` (commits `7bf85c8`, and the basemap commit
+after it) on Rust 1.99.1, driven by Sensors `ottawa-mixed` on port 3802 through
+`devel-scripts/screenshot-gui.sh`; unit tests for the new modules.
+
+**Results:**
+- `cargo test`: **67/67 passing** (was 50). New: 2 attitude (round trip at 4
+  places × 4 attitudes, level-at-equator), 5 MGRS / convergence, 2 symbol,
+  6 view (zone hold, screen round trip in 3 orientations, true north up at a
+  zone edge, track-up, ring / grid steps, range / bearing), 2 basemap.
+- **Symbols, measured by screenshot:** all 12 ottawa-mixed types draw with the
+  intended frame and colour — friendly tank (blue rectangle), hostile tank and
+  AFV (red diamonds), hostile attack helicopter (red air tent, "011 39kt"
+  label), neutral car / bus / school bus / truck / horse / patrol craft
+  (green squares), civil airliner (green, "C"), unknown horse with rider
+  (yellow quatrefoil).
+- **Track-up:** heading 241° points up; north arrow swings to 119° on screen.
+- **Night:** map, symbols and all panel text dimmed (after a fix — the first
+  night screenshot had full-brightness panels).
+- **Basemap:** 30 282 features load (0 skipped); the Ottawa and Rideau
+  rivers, 417 / 416 and main roads draw under the symbols, aligned with the
+  MGRS grid; ODbL attribution shown.
+- Status bar showed `DIS :3802 ex 1 · 238 PDUs · 0 bad`; entity list sorted
+  by range (BUS1 1.3 NM … AFV1 22.8 NM).
+
+**Method:** measured — unit tests run; screenshots taken and inspected. Touch
+gestures were **not** tested on a touch screen (mouse only); frame rate not
+measured.
+
+**Invalidates:**
+- PLAN Phase 3 "✅ Complete (2026-11-08)" for symbology — that was characters
+  only, and every DIS entity showed as `?` until `render::symbol`.
+
+**Found:**
+- A debug build could not draw the basemap at interactive rates; dependencies
+  are now optimised in dev builds.
+- On a **locked** Wayland session the GUI never draws (no frame callbacks);
+  X11 via XWayland works. The screenshot script now uses X11.
+
+---
+
 ## 2026-11-10 — Recordings as regression tests; exercise 1 by default (DD-008)
 
 **Tested:** `src/dis/recordings.rs` over the four `.bin` files copied from

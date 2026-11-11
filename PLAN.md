@@ -23,10 +23,11 @@ was rewritten (DD-004); its "✅ Complete" is withdrawn (TESTLOG 2026-11-10).
       variable parameter), Remove Entity (28 B), bundle splitting
 - [x] `dis::entity` — `EntityRecord`; `Status` from DIS Force ID; `Station` from kind/domain
 - [x] `dis::receiver` — std-only UDP, broadcast/unicast/multicast, exercise filter (DD-005)
-- [ ] Entity type → `Activity` / symbol from SISO-REF-010 categories, incl.
-      cars, trucks, buses, school buses, horses (Bobby, 2026-11-10)
+- [x] Entity type → APP-6A dimension + icon (`render::symbol`, DD-011), incl.
+      cars, trucks, buses, school buses, horses — 2026-11-10
+- [x] Pitch / roll decoded from psi/theta/phi (round-trip tested) — 2026-11-10
 
-**Status:** ⏳ Rewritten and verified 2026-11-10; type mapping not started
+**Status:** ✅ 2026-11-10 (type mapping and attitude added late evening)
 
 ## Phase 2 — Map geometry
 
@@ -67,23 +68,23 @@ point ~3° off-centre in its zone.*
       - Defaults: lat=45, lon=-75, range=100 NM, auto-zoom from range
       - Cache layout: `cache.{z}/x/y.png` with `.downloaded` sentinels
 
-- [ ] **egui/eframe GUI** — needs the ⚖ dependency-policy decision (not network access)
-  - Central viewport with painter API
-  - Sidebar entity info panel
-  - Top bar: zoom slider, grid/ring toggles
-  - Click-to-select entity highlighting
+- [x] **egui/eframe touch-screen GUI** (`cargo run -- gui`, DD-010, DD-011) — 2026-11-10
+  - Map with APP-6A frames, ownship, rings, scale bar, MGRS grid, north arrow
+  - North-up / track-up; tap to select or mark; drag pans; pinch / scroll zooms
+  - Status bar, touch control bar, entity list and details panel
+  - Trails, velocity leaders, stale dimming, dead reckoning, Day/Dusk/Night
 
-**Status:** ⏳ Partial (text UI + tile cache complete, GUI blocked)
+**Status:** ✅ GUI first version 2026-11-10 (see *Update — GUI* below for what is left)
 
 ## Phase 5 — Real-time DIS reception
 
 - [x] UDP receiver (`dis::receiver`, `listen`) — port 3800 default (DD-007; was 3000), optional
       multicast group (DD-005; the planned `239.255.1.1:30000` was dropped)
 - [x] Driven end to end by Sensors' DIS gateway (Sensors CR-001, TESTLOG)
-- [ ] GUI integration (after the dependency decision)
-- [ ] Performance: ≥ 30 fps with 200 entities (Sensors CR for a 200-entity load scenario)
+- [x] GUI integration — receiver thread feeds the GUI (`gui::feed`) — 2026-11-10
+- [ ] Performance: ≥ 30 fps with 200 entities — load-200 drives it; frame rate not yet measured
 
-**Status:** ⏳ Receiver done 2026-11-10; GUI and performance not started
+**Status:** ⏳ Receiver and GUI done 2026-11-10; performance not measured
 
 ## Phase 6 — Polish
 
@@ -171,7 +172,7 @@ servers available on the target.
 
 **⚖ Decisions for Bobby, in order:**
 1. **DIS site settings** — port (**3800** default, Bobby 2026-11-10 — still must match the simulators), exercise ID **1** (Bobby, DD-008), **broadcast** by default — what Bobby typically sees (DD-009); multicast optional via `--group` (239.238.237.236 if a site wants one). Confirm against the site simulators.
-2. **Dependency policy (revisits DD-001)** — DD-001's premise ("sandbox has no network") no longer holds. Options: stay std-only; or allow crates **vendored into the repo** (`cargo vendor`) so builds never reach crates.io. `egui` would arrive this way.
+2. ~~Dependency policy~~ — decided (DD-010): **vendored crates allowed**; eframe for the GUI; Rust 1.99.1 from rustup.
 3. ~~Basemap scope~~ — decided (DD-009): **vector roads main, raster tiles an optional faded backdrop**, both pre-staged. Still open: **road data source** — the site simulators' terrain database (best match to where sim vehicles drive) or an OpenStreetMap extract from an approved site; and the tile site, if tiles are wanted at all.
 4. **Real DIS capture** — a few seconds of `.pcap` from the site simulators would replace synthetic test vectors with real ones.
 
@@ -218,3 +219,40 @@ cargo run -- parse tests/data/dis/ottawa-mixed.bin
 3. ~~Recordings as regression tests~~ — done 2026-11-10: copied into
    `tests/data/dis/` (Bobby: the tests belong to moving-map), 4 tests.
 4. Measure PDU → table latency from the DIS timestamp (REQUIREMENTS §4, < 50 ms).
+
+## Update 2026-11-10 (late) — Touch-screen GUI
+
+**Decided by Bobby:** vendored crates are fine; go ahead with the GUI; it runs
+on a **touch screen**; charts and elevation data are future work (formats to
+be obtained); update Rust (DD-010). Items 1 and 2 of the list above are done
+(DD-011); 3 was done earlier; 4 remains.
+
+```bash
+cargo run -- gui --ownship 1.42.1                       # with any Sensors scenario
+bash devel-scripts/screenshot-gui.sh ottawa-mixed 10    # unattended check → PNG
+```
+
+**Basemap added (DD-012), same night:** Bobby — "I don't see a graphic of the
+area we're flying over." OpenStreetMap roads, rail, rivers and lakes for the
+Ottawa area now draw under the symbols (`data/basemap/ottawa.txt`).
+
+**Next here (moving-map), in order:**
+1. **Declutter** — symbols and labels overlap at 25 NM with 13 entities.
+2. **Frame rate** with load-200 and the basemap (UN-005, ≥ 30 fps at 1080p, 200 entities).
+3. **Basemap polish** — filled lakes, town names, more areas (zone-crossing
+   near Bancroft is off the map) — DD-012 Known Gaps.
+4. **Latency** from the DIS timestamp (< 50 ms).
+5. Try it on the **touch screen** itself — gestures so far tested with a mouse.
+6. Offline build end to end from the vendor tarball (DD-010 Known Gaps).
+
+**⚖ Still Bobby's:** production road source (simulator terrain database vs
+OpenStreetMap — DD-009); a satellite-imagery source whose licence allows
+offline caching, if a backdrop is wanted; chart and elevation formats.
+
+**Asked of Sensors:** CR-005 (`57496cd`) — symbol gallery, ownship
+manoeuvres (heading wrap through north), dead-reckoning send policy with 5 s
+heartbeat, pcap replay at recorded timing (the path for a real simulator
+capture), and a 10-minute demo tour.
+
+**Future (Bobby):** aeronautical charts and elevation data (terrain clearance)
+once the data formats are available.

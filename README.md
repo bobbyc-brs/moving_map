@@ -5,10 +5,11 @@ updated: 2026-11-10
 
 # moving-map-display
 
-A std-only Rust program for a **moving map** of entities reported over
-**DIS** (Distributed Interactive Simulation) and drawn with **NATO APP-6A**
-symbols. Today it receives DIS from the LAN and renders the map as text in a
-terminal; the GUI is not built yet (see `PLAN.md`).
+A Rust **moving map** for a touch screen, showing entities reported over
+**DIS** (Distributed Interactive Simulation) with **NATO APP-6A** symbols,
+centred on ownship — for an in-flight / simulator crew display. It receives DIS
+from the LAN and draws the map in a GUI (`gui`) or as text in a terminal
+(`listen`).
 
 ---
 
@@ -16,18 +17,23 @@ terminal; the GUI is not built yet (see `PLAN.md`).
 
 | Path | System | What it is | Stack |
 |---|---|---|---|
-| `src/dis/` | Library | DIS PDU parser (IEEE 1278.1), UDP receiver, entity table | Rust std |
-| `src/map/` | Library | WGS84 ↔ UTM (Krüger series, 10 cm round trip; DD-002, DD-006) and ECEF ↔ WGS84 | Rust std |
-| `src/render/` | Library | APP-6A character symbology for the text map (per DD-003) | Rust std |
-| `src/cache/` | Library | Map tile cache: mission-area tile bounds, atomic tile writes | Rust std |
-| `src/app/` | Library | Planned GUI application state — **not compiled yet** (`PLAN.md`, Discrepancies #8) | Rust std |
-| `src/main.rs` | Binary | CLI: `listen`, `demo`, `entities`, `parse`, `parse-stdin`, `cache-gen` | Rust std |
+| `src/dis/` | Library | DIS PDU parser (IEEE 1278.1), UDP receiver, entity table, attitude | Rust std |
+| `src/map/` | Library | WGS84 ↔ UTM (Krüger series, 10 cm; DD-006), ECEF ↔ WGS84, MGRS, grid convergence | Rust std |
+| `src/render/` | Library | DIS entity type → APP-6A dimension and icon (`symbol`, DD-011); text-map characters (`nato`) | Rust std |
+| `src/gui/` | Library | Touch-screen map: view transform, DIS feed thread, APP-6A painting, panels (DD-011) | egui/eframe 0.37 |
+| `src/cache/` | Library | Map tile cache: mission-area tile bounds, atomic tile writes (placeholder tiles only) | Rust std |
+| `src/main.rs` | Binary | CLI: `gui`, `listen`, `demo`, `entities`, `parse`, `parse-stdin`, `cache-gen` | Rust std |
+| `data/basemap/` | Data | Vector basemap — OpenStreetMap roads, rail, rivers, lakes for the Ottawa area (DD-012) | text |
+| `devel-scripts/` | Scripts | Install Rust, vendor crates, fetch basemap, verify against Sensors, screenshot the GUI | bash, python |
 
-No external crates — all of `[dependencies]` in `Cargo.toml` is empty, per DD-001.
+*Revised 2026-11-10 (DD-010):* the GUI uses **one external crate, `eframe`**
+(with its dependencies), vendored for offline builds. Everything else is std-only.
+Building needs **Rust 1.99.1 from rustup** — the distro `rustc` is too old;
+`devel-scripts/01-install-rust.sh` installs it (see `DEVELOPING.md`).
 
 ## Data flow
 
-LAN UDP datagram → `dis::receiver` → `dis::packet` parse (ECEF → WGS84) → entity table → `map::projection` (WGS84 → UTM) → `render::nato` symbol → 80×24 text map.
+LAN UDP datagram → `dis::receiver` (feed thread) → `dis::packet` parse (ECEF → WGS84, attitude) → entity table → `gui::view` (WGS84 → held UTM zone → screen) → `gui::draw` APP-6A symbol over the `data/basemap` roads and water, on the touch screen.
 
 ## How the pieces talk
 
@@ -53,7 +59,7 @@ LAN UDP datagram → `dis::receiver` → `dis::packet` parse (ECEF → WGS84) �
 | `DEVELOPING.md` | How to build, run, and test; project conventions |
 | `REQUIREMENTS.md` | What the system must do |
 | `PLAN.md` | Phases, status, open ⚖ decisions, known discrepancies |
-| `DECISIONS.md` | Why it is built this way (DD-001 to DD-006) |
+| `DECISIONS.md` | Why it is built this way (DD-001 to DD-012) |
 | `TEST-PLAN.md` | How each requirement will be verified |
 | `TESTLOG.md` | What was actually verified, and when |
 | `SESSION-STATUS.md` | Hand-off notes from the most recent working session |
