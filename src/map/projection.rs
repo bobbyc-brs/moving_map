@@ -1,10 +1,18 @@
-/// UTM projection (WGS84) - forward and inverse.
+/// UTM projection (WGS84) — forward and inverse, by the Krüger series
+/// (Karney 2011, "Transverse Mercator with an accuracy of a few nanometers",
+/// truncated at n⁴): sub-millimetre within a UTM zone. Replaces the earlier
+/// hand-rolled series, which dropped the southern false northing, omitted the
+/// inverse latitude correction, and scaled the false easting by k0 (PLAN.md,
+/// Discrepancies #4; TESTLOG 2026-11-10).
 
 const WGS84_A: f64 = 6378137.0;
 const WGS84_F: f64 = 1.0 / 298.257223563;
 const WGS84_E2: f64 = 2.0 * WGS84_F - WGS84_F * WGS84_F;
-const WGS84_EP2: f64 = WGS84_E2 / (1.0 - WGS84_E2);
+/// Third flattening.
 const WGS84_N: f64 = WGS84_F / (2.0 - WGS84_F);
+const K0: f64 = 0.9996;
+const FALSE_EASTING: f64 = 500_000.0;
+const FALSE_NORTHING_SOUTH: f64 = 10_000_000.0;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct LatLon { pub lat: f64, pub lon: f64 }
@@ -13,93 +21,101 @@ pub struct EastingNorthing { pub easting: f64, pub northing: f64, pub zone: u32,
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Hemisphere { North, South }
 
-fn meridional_coeffs() -> (f64, f64, f64, f64) {
-    let e2 = WGS84_E2;
-    let a0 = 1.0 - e2 / 4.0 - 3.0 * e2 * e2 / 64.0 - 5.0 * e2 * e2 * e2 / 256.0;
-    let a2 = 3.0 * e2 / 8.0 + 3.0 * e2 * e2 / 32.0 + 45.0 * e2 * e2 * e2 / 1024.0;
-    let a4 = 15.0 * e2 * e2 / 256.0 + 45.0 * e2 * e2 * e2 / 1024.0;
-    let a6 = 35.0 * e2 * e2 * e2 / 3072.0;
-    (a0, a2, a4, a6)
+/// Rectifying radius A and the α, β, δ series coefficients.
+struct Kruger { a: f64, alpha: [f64; 4], beta: [f64; 4], delta: [f64; 4] }
+
+fn kruger() -> Kruger {
+    let n = WGS84_N;
+    let (n2, n3, n4) = (n * n, n * n * n, n * n * n * n);
+    Kruger {
+        a: WGS84_A / (1.0 + n) * (1.0 + n2 / 4.0 + n4 / 64.0),
+        alpha: [
+            n / 2.0 - 2.0 * n2 / 3.0 + 5.0 * n3 / 16.0 + 41.0 * n4 / 180.0,
+            13.0 * n2 / 48.0 - 3.0 * n3 / 5.0 + 557.0 * n4 / 1440.0,
+            61.0 * n3 / 240.0 - 103.0 * n4 / 140.0,
+            49561.0 * n4 / 161280.0,
+        ],
+        beta: [
+            n / 2.0 - 2.0 * n2 / 3.0 + 37.0 * n3 / 96.0 - n4 / 360.0,
+            n2 / 48.0 + n3 / 15.0 - 437.0 * n4 / 1440.0,
+            17.0 * n3 / 480.0 - 37.0 * n4 / 840.0,
+            4397.0 * n4 / 161280.0,
+        ],
+        delta: [
+            2.0 * n - 2.0 * n2 / 3.0 - 2.0 * n3 + 116.0 * n4 / 45.0,
+            7.0 * n2 / 3.0 - 8.0 * n3 / 5.0 - 227.0 * n4 / 45.0,
+            56.0 * n3 / 15.0 - 136.0 * n4 / 35.0,
+            4279.0 * n4 / 630.0,
+        ],
+    }
 }
 
-fn meridional_arc(lat: f64) -> f64 {
-    let (a0, a2, a4, a6) = meridional_coeffs();
-    WGS84_A * (a0 * lat - a2 * (2.0 * lat).sin() + a4 * (4.0 * lat).sin() - a6 * (6.0 * lat).sin())
+fn central_meridian_deg(zone: u32) -> f64 {
+    -183.0 + 6.0 * zone as f64
 }
 
 impl LatLon {
+    /// Forward projection into the UTM zone containing this longitude.
     pub fn to_utm(self) -> EastingNorthing {
-        let lat = self.lat.to_radians();
-        let lon = self.lon.to_radians();
-        let lon_deg = self.lon;
-        let zone = ((lon_deg + 180.0) / 6.0).floor() as u32 + 1;
-        let lon0 = (-180.0 + (zone as f64 - 1.0) * 6.0).to_radians();
-        let k0: f64 = 0.9996;
-        let sin_lat = lat.sin();
-        let cos_lat = lat.cos();
-        let tan_lat = lat.tan();
-        let n = WGS84_A / (1.0 - WGS84_E2 * sin_lat * sin_lat).sqrt();
-        let t = tan_lat * tan_lat;
-        let c = WGS84_EP2 * sin_lat * sin_lat;
-        let a = cos_lat * (lon - lon0);
+        let zone = (((self.lon + 180.0) / 6.0).floor() as i64).clamp(0, 59) as u32 + 1;
+        self.to_utm_zone(zone)
+    }
 
-        let m = meridional_arc(lat);
+    /// Forward projection into a given zone (lets callers keep one zone, per DD-002).
+    pub fn to_utm_zone(self, zone: u32) -> EastingNorthing {
+        let k = kruger();
+        let e = WGS84_E2.sqrt();
+        let phi = self.lat.to_radians();
+        let dlam = (self.lon - central_meridian_deg(zone)).to_radians();
 
-        let mut easting = n * a
-            + n * a * a * a / 6.0 * (1.0 - t + c)
-            + n * a * a * a * a * a / 120.0
-                * (5.0 - 18.0 * t + t * t + 72.0 * c - 58.0 * WGS84_EP2 * WGS84_EP2 * sin_lat * sin_lat)
-            + 500_000.0;
+        // Conformal latitude via t = tan χ.
+        let t = (phi.sin().atanh() - e * (e * phi.sin()).atanh()).sinh();
+        let xi_p = t.atan2(dlam.cos());
+        let eta_p = (dlam.sin() / (1.0 + t * t).sqrt()).atanh();
 
-        let n2 = n * tan_lat / 2.0;
-        let n4 = n / 24.0 * (5.0 - t + 9.0 * c + 4.0 * c * c);
-        let n6 = n / 720.0 * (61.0 - 58.0 * t + t * t + 600.0 * c - 330.0 * WGS84_EP2 * WGS84_EP2 * sin_lat * sin_lat);
-        let mut northing = m + n2 * a * a + n4 * a * a * a * a + n6 * a * a * a * a * a * a;
-
-        easting *= k0;
-        northing *= k0;
-        if self.lat < 0.0 {
-            northing += 10_000_000.0;
+        let (mut xi, mut eta) = (xi_p, eta_p);
+        for (j, a) in k.alpha.iter().enumerate() {
+            let m = 2.0 * (j + 1) as f64;
+            xi += a * (m * xi_p).sin() * (m * eta_p).cosh();
+            eta += a * (m * xi_p).cos() * (m * eta_p).sinh();
         }
-        EastingNorthing { easting, northing, zone, hemisphere: if self.lat >= 0.0 { Hemisphere::North } else { Hemisphere::South } }
+
+        let hemisphere = if self.lat >= 0.0 { Hemisphere::North } else { Hemisphere::South };
+        let n0 = if hemisphere == Hemisphere::South { FALSE_NORTHING_SOUTH } else { 0.0 };
+        EastingNorthing {
+            easting: FALSE_EASTING + K0 * k.a * eta,
+            northing: n0 + K0 * k.a * xi,
+            zone,
+            hemisphere,
+        }
     }
 }
 
 impl EastingNorthing {
     pub fn to_latlon(self) -> LatLon {
-        let k0: f64 = 0.9996;
-        let m = self.northing / k0;
-        let (a0, _a2, _a4, _a6) = meridional_coeffs();
-        let mu = m / (WGS84_A * a0);
-        let n = WGS84_N;
-        let phi1 = mu
-            + (3.0 * n - 3.0 * n * n + 12.0 * n * n * n) / 8.0 * (2.0 * mu).sin()
-            + (15.0 * n * n - 15.0 * n * n * n + 105.0 * n * n * n * n) / 16.0 * (4.0 * mu).sin()
-            + (355.0 * n * n * n / 384.0) * (6.0 * mu).sin();
+        let k = kruger();
+        let n0 = if self.hemisphere == Hemisphere::South { FALSE_NORTHING_SOUTH } else { 0.0 };
+        let xi = (self.northing - n0) / (K0 * k.a);
+        let eta = (self.easting - FALSE_EASTING) / (K0 * k.a);
 
-        // Iterative refinement using Newton's method
-        let mut lat = phi1;
-        for _ in 0..10 {
-            let m2 = meridional_arc(lat);
-            let rho = WGS84_A * (1.0 - WGS84_E2) / (1.0 - WGS84_E2 * lat.sin() * lat.sin()).powf(1.5);
-            let dlat = (m - m2) / (rho * k0);
-            lat += dlat;
+        let (mut xi_p, mut eta_p) = (xi, eta);
+        for (j, b) in k.beta.iter().enumerate() {
+            let m = 2.0 * (j + 1) as f64;
+            xi_p -= b * (m * xi).sin() * (m * eta).cosh();
+            eta_p -= b * (m * xi).cos() * (m * eta).sinh();
         }
 
-        let sp = lat.sin();
-        let tp = lat.tan();
-        let n1 = WGS84_A / (1.0 - WGS84_E2 * sp * sp).sqrt();
-        let t1 = tp * tp;
-        let _r1 = WGS84_A * (1.0 - WGS84_E2) / (1.0 - WGS84_E2 * sp * sp).powf(1.5);
-        let d = (self.easting / k0 - 500_000.0) / (n1 * k0);
-        let d2 = d * d;
-        let d3 = d2 * d;
-        let _d4 = d2 * d2;
-        let d5 = d3 * d2;
-        let _d6 = d3 * d3;
-        let lon = (d - (1.0 + 2.0 * t1 + sp * sp) * d3 / 6.0 + (5.0 + 28.0 * t1 + 24.0 * t1 * t1 + 6.0 * sp * sp + 8.0 * WGS84_E2 * sp * sp) * d5 / 120.0) / lat.cos()
-            + (-180.0 + (self.zone as f64 - 1.0) * 6.0).to_radians();
-        LatLon { lat: lat.to_degrees(), lon: lon.to_degrees() }
+        let chi = (xi_p.sin() / eta_p.cosh()).asin();
+        let mut phi = chi;
+        for (j, d) in k.delta.iter().enumerate() {
+            phi += d * (2.0 * (j + 1) as f64 * chi).sin();
+        }
+        let dlam = eta_p.sinh().atan2(xi_p.cos());
+
+        LatLon {
+            lat: phi.to_degrees(),
+            lon: central_meridian_deg(self.zone) + dlam.to_degrees(),
+        }
     }
 }
 
@@ -174,24 +190,91 @@ mod tests {
         assert!((ll.lon - ll_back.lon).abs() < 0.05);
     }
 
-    #[test]
-    fn roundtrip_equator() {
-        let ll = LatLon { lat: 0.0, lon: 0.0 };
-        let utm = ll.to_utm();
-        assert_eq!(utm.zone, 31);
-        assert!(utm.easting > 499_500.0 && utm.easting < 500_500.0);
-        assert!(utm.northing.abs() < 1.0);
-        let ll_back = utm.to_latlon();
-        assert!((ll.lat - ll_back.lat).abs() < 0.05);
-        assert!((ll.lon - ll_back.lon).abs() < 0.05);
+    /// Ground distance in metres between two nearby points (local flat-earth
+    /// approximation using WGS84 meridian and prime-vertical radii — exact
+    /// enough at the sub-metre scale being measured).
+    fn ground_error_m(a: LatLon, b: LatLon) -> f64 {
+        let lat = a.lat.to_radians();
+        let s2 = lat.sin() * lat.sin();
+        let m = WGS84_A * (1.0 - WGS84_E2) / (1.0 - WGS84_E2 * s2).powf(1.5);
+        let n = WGS84_A / (1.0 - WGS84_E2 * s2).sqrt();
+        let dn = (b.lat - a.lat).to_radians() * m;
+        let de = (b.lon - a.lon).to_radians() * n * lat.cos();
+        dn.hypot(de)
     }
 
+    /// LatLon → UTM → LatLon must land within 10 cm (Bobby, 2026-11-10: the
+    /// right bar for aircraft display). Covers the zone's central meridian
+    /// and edges, and latitudes from the equator to 70°N/S.
     #[test]
-    fn zone_18_values() {
-        let ll = LatLon { lat: 45.0, lon: -75.0 };
-        let utm = ll.to_utm();
-        assert_eq!(utm.zone, 18);
-        assert!(utm.easting > 700_000.0 && utm.easting < 800_000.0);
-        assert!(utm.northing > 4_900_000.0 && utm.northing < 5_000_000.0);
+    fn utm_round_trip_within_10_cm() {
+        let mut worst = (0.0_f64, LatLon { lat: 0.0, lon: 0.0 });
+        for &lat in &[0.0, 15.0, 30.0, 45.0, 45.4215, 60.0, 70.0, -33.9, -70.0] {
+            // Zone 18 spans 78°W..72°W, central meridian 75°W.
+            for &lon in &[-75.0, -75.6972, -77.99, -72.01, -76.5] {
+                let ll = LatLon { lat, lon };
+                let back = ll.to_utm().to_latlon();
+                let err = ground_error_m(ll, back);
+                if err > worst.0 { worst = (err, ll); }
+            }
+        }
+        eprintln!("worst UTM round-trip error: {:.4} m at {:?}", worst.0, worst.1);
+        assert!(worst.0 < 0.10, "worst error {:.4} m at {:?}", worst.0, worst.1);
+    }
+
+    /// Meridian arc length from the equator, by Simpson integration of the
+    /// meridian radius — independent of the Krüger series under test.
+    fn meridian_arc_numeric(lat_deg: f64) -> f64 {
+        let steps = 20_000;
+        let h = lat_deg.to_radians() / steps as f64;
+        let m = |p: f64| WGS84_A * (1.0 - WGS84_E2) / (1.0 - WGS84_E2 * p.sin() * p.sin()).powf(1.5);
+        let mut sum = m(0.0) + m(lat_deg.to_radians());
+        for i in 1..steps {
+            sum += m(i as f64 * h) * if i % 2 == 1 { 4.0 } else { 2.0 };
+        }
+        sum * h / 3.0
+    }
+
+    /// On the central meridian, easting is exactly the false easting and
+    /// northing is k0 × the meridian arc. 75°W is zone 18's central meridian.
+    #[test]
+    fn central_meridian_matches_meridian_arc() {
+        for &lat in &[10.0, 45.0, 45.4215, 70.0] {
+            let utm = LatLon { lat, lon: -75.0 }.to_utm();
+            assert_eq!(utm.zone, 18);
+            assert!((utm.easting - 500_000.0).abs() < 1e-6, "easting {}", utm.easting);
+            let expected = K0 * meridian_arc_numeric(lat);
+            assert!((utm.northing - expected).abs() < 0.001, "lat {lat}: {} vs {expected}", utm.northing);
+        }
+        // Published figure for 45°N on a central meridian: 4 982 950.40 m.
+        let n45 = LatLon { lat: 45.0, lon: -75.0 }.to_utm().northing;
+        assert!((n45 - 4_982_950.40).abs() < 0.01, "45N northing {n45}");
+    }
+
+    /// (0°, 0°) is 3° west of zone 31's central meridian (3°E); the zone-edge
+    /// easting at the equator is the well-known 166 021.44 m.
+    #[test]
+    fn equator_zone_edge_easting() {
+        let utm = LatLon { lat: 0.0, lon: 0.0 }.to_utm();
+        assert_eq!(utm.zone, 31);
+        assert!((utm.easting - 166_021.44).abs() < 0.01, "easting {}", utm.easting);
+        assert!(utm.northing.abs() < 1e-6);
+    }
+
+    /// Southern hemisphere uses a 10 000 km false northing.
+    #[test]
+    fn southern_hemisphere_false_northing() {
+        let utm = LatLon { lat: -0.000_001, lon: 3.0 }.to_utm();
+        assert_eq!(utm.hemisphere, Hemisphere::South);
+        assert!((utm.northing - 10_000_000.0).abs() < 1.0, "northing {}", utm.northing);
+    }
+
+    /// Zone boundaries: 72°W is the first longitude of zone 19.
+    #[test]
+    fn zone_boundaries() {
+        assert_eq!(LatLon { lat: 44.9, lon: -72.000_001 }.to_utm().zone, 18);
+        assert_eq!(LatLon { lat: 44.9, lon: -72.0 }.to_utm().zone, 19);
+        assert_eq!(LatLon { lat: 45.0, lon: 180.0 }.to_utm().zone, 60);
+        assert_eq!(LatLon { lat: 45.0, lon: -180.0 }.to_utm().zone, 1);
     }
 }
