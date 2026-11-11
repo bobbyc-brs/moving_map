@@ -5,6 +5,34 @@ rewritten — a later entry corrects an earlier one.
 
 ---
 
+## 2026-11-10 — Sensors DIS gateway drives `listen` (Sensors CR-001)
+
+**Tested:** Sensors `gateways/dis_gateway.py` (Sensors commit `644203f`) feeding
+`moving-map-display listen` over loopback, port 3911, 3 aircraft, 25 s run then
+SIGINT. Independent re-run of the Sensors agent's acceptance, using
+a scratch script (`verify-cr001.sh`, not committed).
+
+**Results:**
+- Sensors gateway unit tests: **11/11 passing** (`python3 -m unittest tests.test_dis_gateway`).
+- **Case 1, truth only:** 39 datagrams / 39 PDUs / **0 malformed**; 3 tracked
+  (`1.42.1–3`, all Neutral — force 3 per Bobby) at YYT, YHZ, YQB, the departure
+  airports of Sensors' first three default routes. Tracked fell **3 → 0** at the
+  first redraw after SIGINT (Remove Entity), not after the 12 s timeout.
+- **Case 2, `--dis-fused`:** 84 datagrams / 84 PDUs / **0 malformed**; 6 tracked —
+  the 3 truth plus `2.42.1–3` as Unknown (force 0), each within ~50 m of its truth
+  position (noisy sensor default 50 m). 6 → 0 at the first redraw after SIGINT.
+- No simulator processes left running after either case.
+
+**Method:** measured.
+
+**Unblocks:** Sensors as the scenario driver for moving-map development.
+
+**Invalidates:** nothing. Known limit carried forward: Sensors sends each
+aircraft's *initial* great-circle bearing for the whole flight, so DIS heading
+drifts from the true track on long routes (Sensors CR-001 notes).
+
+---
+
 ## 2026-11-10 — DIS parser rewrite (DD-004) and LAN receiver (DD-005)
 
 **Tested:** `src/dis/packet.rs`, `src/dis/receiver.rs`, `ecef_to_geodetic` in

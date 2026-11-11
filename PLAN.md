@@ -209,3 +209,22 @@ servers available on the target.
 
 **Also pending:** an Open-DIS (PyPI) cross-check was blocked by the session's
 permission rules; the Python `struct` encoder in TESTLOG 2026-11-10 stood in.
+
+## Update 2026-11-10 (evening) — Sensors drives the map
+
+**Sensors CR-001: Processed** (Sensors `644203f`, `033eb02`) and re-verified
+here (TESTLOG 2026-11-10, "Sensors DIS gateway"). Run it with:
+
+```bash
+# ~/Projects/Sensors
+python3 simulation_manager.py -v 3 --headless --dis            # truth only
+python3 simulation_manager.py -v 3 --headless --dis --dis-fused # + sensed tracks
+# ~/Projects/moving-map-display
+cargo run -- listen --port 3000 --range-nm 200
+```
+
+**Decided by Bobby:** civil aircraft are Neutral (force 3); sensed traffic is
+optional (`--dis-fused`) and shows as Unknown (force 0), site 2.
+
+**Open (Bobby's call):** Sensors' heading drift (initial bearing held for the
+whole flight) — fix lives in Sensors `vehicles/vehicle_sim.py`, not here.
