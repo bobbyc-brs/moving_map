@@ -50,7 +50,19 @@ run_live load load-200 15 --range-nm 120
 grep -a "datagrams=" "$OUT/load.txt" | tail -1
 tail -1 "$OUT/load.runner"
 
-echo "===== 4. leftovers ====="
+echo "===== 4. pcap replay (Sensors CR-005), x4 speed ====="
+# ottawa-mixed.pcap: 30 s, 554 PDUs → ~7.5 s at ×4.
+"$MAP" listen --port "$PORT" --seconds 12 > "$OUT/replay.listen" 2>&1 &
+LISTEN_PID=$!
+sleep 1
+(cd "$SENSORS" && python3 -m cgf.replay recordings/ottawa-mixed.pcap --port "$PORT" --speed 4) \
+  > "$OUT/replay.runner" 2>&1 || true
+wait "$LISTEN_PID" || true
+strip "$OUT/replay.listen" > "$OUT/replay.txt"
+grep -a "datagrams=" "$OUT/replay.txt" | tail -1
+tail -2 "$OUT/replay.runner"
+
+echo "===== 5. leftovers ====="
 if pgrep -af "cgf.runner|moving-map-display listen"; then
   echo "WARNING: processes still running"
 else

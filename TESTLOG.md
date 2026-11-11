@@ -5,6 +5,36 @@ rewritten — a later entry corrects an earlier one.
 
 ---
 
+## 2026-11-11 — Sensors CR-005 (symbol gallery, replay) against the GUI
+
+**Tested:** Sensors `72897b4` (CR-005 Processed, `88ec86d`): the
+`symbol-gallery` scenario in `gui` at 1 and 2 NM (`screenshot-gui.sh`), and
+`cgf.replay` of `ottawa-mixed.pcap` at ×4 into `listen`
+(`verify-with-sensors.sh`, which now includes the replay).
+
+**Results:**
+- **Gallery: all 72 cells** (4 forces × 18 types) draw with the right frame
+  and colour, including subsurface (friendly bowl, hostile inverted tent,
+  neutral open-top box, unknown lower quatrefoil), UAV, ship, dismounted
+  person and unknown-kind `?`; 0 bad PDUs.
+- **Bug found and fixed:** in air frames (open at the bottom) the icons hung
+  below the frame — the helicopter's A / U letter and the aircraft tails.
+  Air and subsurface icons are now raised / lowered by 0.14 s and drawn at
+  75 %; re-checked by screenshot.
+- **Replay:** 554 datagrams sent, **554 received, 0 malformed**; replay time
+  7.48 s against 7.48 s expected (+0.01 %).
+- Same run: ottawa-mixed live 296 / 296, load-200 live 3 400 / 3 400, both 0
+  malformed; all four regression vectors decode.
+
+**Method:** measured — screenshots inspected; counters read from `listen`.
+Not re-run here: `ownship-manoeuvres` (heading wrap), the dead-reckoning send
+policy, and `demo-tour` — reported by the Sensors agent (CR-005 note).
+
+**Unblocks:** a real simulator capture can be replayed into the GUI with
+`python3 -m cgf.replay <file.pcap>` once one exists.
+
+---
+
 ## 2026-11-10 — Touch-screen GUI and basemap (DD-010, DD-011, DD-012)
 
 **Tested:** `cargo run -- gui` (commits `7bf85c8`, and the basemap commit

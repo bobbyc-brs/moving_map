@@ -281,12 +281,15 @@ pub fn symbol(painter: &Painter, p: &Palette, centre: Pos2, dim: Dimension, icon
     } else {
         painter.add(Shape::closed_line(pts, line));
     }
-    let icon_centre = match dim {
-        Dimension::Air => centre + Vec2::new(0.0, -0.05 * s),
-        Dimension::Subsurface => centre + Vec2::new(0.0, 0.05 * s),
-        _ => centre,
+    // Air frames span about −0.65 s … +0.35 s (open at the bottom), so their
+    // icon sits higher and smaller; subsurface mirrors that. Found with the
+    // Sensors symbol gallery (CR-005): icons hung out of the open side.
+    let (icon_centre, icon_s) = match dim {
+        Dimension::Air => (centre + Vec2::new(0.0, -0.14 * s), 0.75 * s),
+        Dimension::Subsurface => (centre + Vec2::new(0.0, 0.14 * s), 0.75 * s),
+        _ => (centre, s),
     };
-    draw_icon(painter, icon_centre, icon, s, Stroke::new(1.6, line.color), fill);
+    draw_icon(painter, icon_centre, icon, icon_s, Stroke::new(1.6, line.color), fill);
     outline.iter().map(|v| v.x.abs()).fold(0.0, f32::max)
 }
 
@@ -357,7 +360,7 @@ fn draw_icon(painter: &Painter, c: Pos2, icon: Icon, s: f32, st: Stroke, fill: C
                 _ => "",
             };
             if !letter.is_empty() {
-                painter.text(at(0.0, 0.3), Align2::CENTER_CENTER, letter, FontId::proportional(0.28 * s), st.color);
+                painter.text(at(0.0, 0.22), Align2::CENTER_TOP, letter, FontId::proportional(0.3 * s), st.color);
             }
         }
         Icon::FixedWing | Icon::CivilAircraft => {
