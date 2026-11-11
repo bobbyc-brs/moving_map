@@ -106,7 +106,7 @@ mod tests {
     fn state(exercise: u8) -> Vec<u8> {
         let [x, y, z] = geodetic_to_ecef(45.0, -75.0, 100.0);
         encode::entity_state(&encode::EntityStateSpec {
-            id: (1, 1, 9), force: 1, entity_type: [1, 2, 0, 124, 0, 0, 0, 0],
+            id: (1, 1, 9), force: 1, entity_type: [1, 2, 0, 39, 0, 0, 0, 0],
             velocity: [0.0; 3], location: [x, y, z], orientation: [0.0; 3],
             marking: "UDP", exercise,
         })

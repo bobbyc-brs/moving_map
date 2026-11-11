@@ -99,7 +99,7 @@ mod tests {
     fn apply_state_then_remove() {
         let [x, y, z] = geodetic_to_ecef(45.0, -75.0, 0.0);
         let es = encode::entity_state(&encode::EntityStateSpec {
-            id: (5, 6, 7), force: 1, entity_type: [1, 1, 0, 124, 1, 0, 0, 0],
+            id: (5, 6, 7), force: 1, entity_type: [1, 1, 0, 39, 1, 0, 0, 0],
             velocity: [0.0; 3], location: [x, y, z], orientation: [0.0; 3],
             marking: "TANK", exercise: 1,
         });

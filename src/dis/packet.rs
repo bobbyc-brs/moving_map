@@ -464,7 +464,7 @@ mod tests {
         entity_state(&EntityStateSpec {
             id: (1, 2, 3),
             force: 2,
-            entity_type: [1, 2, 0, 124, 20, 1, 0, 0], // platform, air, Canada
+            entity_type: [1, 2, 0, 39, 20, 1, 0, 0], // platform, air, Canada (SISO-REF-010: 39)
             velocity: [3.0, 4.0, 0.0],
             location: [x, y, z],
             orientation: [0.5, -0.25, 0.0],
@@ -480,7 +480,7 @@ mod tests {
         assert_eq!(pdu.force_id, 2);
         assert_eq!(pdu.entity_type.kind, kind::PLATFORM);
         assert_eq!(pdu.entity_type.domain, domain::AIR);
-        assert_eq!(pdu.entity_type.country, 124);
+        assert_eq!(pdu.entity_type.country, 39);
         assert_eq!(pdu.marking, "HELO-1");
         assert_eq!(pdu.speed(), 5.0);
 

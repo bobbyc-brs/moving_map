@@ -95,6 +95,11 @@ Discrepancies #5.*
     buses)** and **horses**, mapped from the DIS entity type (SISO-REF-010:
     land categories 81 car, 82 bus / sub 12 school bus, 83 cargo truck;
     life form, category 200 mammal, sub 80 horse). Road-following is future work.
+    *Note 2026-11-10:* Wireshark 4.2.6 names categories 81–83 but shows car
+    sub 10, school-bus sub 12 and life-form 200 / 80 / 90 as bare numbers —
+    those codes are not yet confirmed against SISO-REF-010 itself.
+  - Country is the **SISO-REF-010** code, not ISO 3166: Canada = **39**
+    (124 is Lesotho). Corrected 2026-11-10; see TESTLOG.
   - Annotate with **T-Grid reference**, **call sign**, and
     **equipment count**.
 - Draw ownship as a distinct aircraft symbol with heading vector.

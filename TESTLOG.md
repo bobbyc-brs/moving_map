@@ -5,6 +5,36 @@ rewritten — a later entry corrects an earlier one.
 
 ---
 
+## 2026-11-10 — Wireshark (tshark 4.2.6) cross-check; country code corrected
+
+**Tested:** all four Sensors recordings (4 562 PDUs: 4 302 Entity State, 260
+Remove Entity), decoded three ways — raw bytes, tshark's DIS dissector on the
+`.pcap`, and this repo's `parse` on the `.bin`. Run by the Sensors agent
+(Sensors `5b58db7`, CR-002/CR-004 addenda); country enum re-checked here in
+`packet-dis.c` (`DIS_PDU_COUNTRY_CANADA_CAN = 39`, `…LESOTHO_LSO = 124`).
+
+**Results:**
+- PDU type, exercise, version, entity ID, force, all 7 entity-type fields,
+  marking and Remove's receiving ID agree on **every PDU**; ECEF agrees to
+  tshark's print precision (5 nm), lat/lon/alt to `parse`'s 6 dp / 0.1 m.
+- **Country 124 decodes as Lesotho.** DIS uses SISO-REF-010 country codes, where
+  Canada is **39**; 124 is Canada's ISO 3166 numeric. The error was this repo's —
+  CR-002's type table said "country 124 = Canada", and Sensors followed it.
+- Fixed here: test encoders in `packet.rs`, `dis/mod.rs`, `receiver.rs` now
+  use 39; `cargo test` **45/45 passing**. Sensors' fix (catalogue, tests,
+  recordings) agreed with the Sensors agent, pending at time of writing.
+- Not confirmed by Wireshark 4.2.6 (shown as bare numbers): car sub 10,
+  school-bus sub 12, life-form category 200 and horse subs 80 / 90.
+- Wireshark limits for anyone reading captures: it dissects only the first
+  PDU of a bundled datagram, and decodes random garbage as junk PDUs rather
+  than flagging them.
+
+**Method:** measured (by the Sensors agent; enum value checked here).
+
+**Invalidates:** the 2026-11-10 CR-002→004 entry's "types decode exactly as
+CR-002 asked" for the country field — they matched the request, but the request
+was wrong (`1.1.124.…` should be `1.1.39.…`).
+
 ## 2026-11-10 — Sensors CGF scenarios, faults and recordings (Sensors CR-002 → CR-004)
 
 **Tested:** Sensors `1f3f99a`, `477c126`, `a1e3ac9` (CGF runner, scenarios,
