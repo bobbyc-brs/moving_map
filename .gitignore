@@ -1,6 +1,11 @@
 # Build artifacts
 target/
 
+# Vendored crates (DD-010): ~355 MB, regenerated exactly from Cargo.lock by
+# devel-scripts/02-vendor-crates.sh — too large for git, adds no information.
+vendor/
+vendor-*.tar.gz
+
 # Tile cache (downloaded once, not committed)
 tile-cache/
 cache.*

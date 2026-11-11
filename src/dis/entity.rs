@@ -190,6 +190,10 @@ pub struct EntityRecord {
     pub pitch: f32,
     pub roll: f32,
     pub last_heard: std::time::Instant,
+    /// DIS force ID as received (0 when not from DIS).
+    pub force_id: u8,
+    /// DIS entity type as received; drives the symbol (`render::symbol`).
+    pub entity_type: crate::dis::packet::EntityType,
 }
 
 impl EntityRecord {
@@ -211,6 +215,8 @@ impl EntityRecord {
             latitude, longitude, altitude,
             heading, speed, pitch: 0.0, roll: 0.0,
             last_heard,
+            force_id: 0,
+            entity_type: crate::dis::packet::EntityType::default(),
         }
     }
 

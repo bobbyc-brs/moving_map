@@ -1,0 +1,10 @@
+# Source replacement for offline builds from vendor/ (DD-010).
+# Not loaded by default — pass it explicitly:
+#   cargo build --offline --config .cargo/vendor.toml
+# vendor/ is created by devel-scripts/02-vendor-crates.sh and is not in git.
+
+[source.crates-io]
+replace-with = "vendored-sources"
+
+[source.vendored-sources]
+directory = "vendor"

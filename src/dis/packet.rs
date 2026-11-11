@@ -272,11 +272,13 @@ impl EntityStatePdu {
         } else {
             self.marking.clone()
         };
-        EntityRecord::new(
+        let [psi, theta, phi] = self.orientation.map(f64::from);
+        let (_, pitch, roll) = attitude_from_orientation(lat, lon, psi, theta, phi);
+        let mut record = EntityRecord::new(
             self.entity_id,
             name,
             self.entity_type.station(),
-            Activity::Unknown, // needs SISO-REF-010 category tables — see PLAN.md
+            Activity::Unknown, // symbols come from `entity_type` (render::symbol)
             Status::from_force_id(self.force_id),
             lat,
             lon,
@@ -284,8 +286,68 @@ impl EntityStatePdu {
             self.heading_degrees(),
             self.speed(),
             now,
-        )
+        );
+        record.force_id = self.force_id;
+        record.entity_type = self.entity_type;
+        record.pitch = pitch as f32;
+        record.roll = roll as f32;
+        record
     }
+}
+
+/// Local attitude — heading (°, true, [0, 360)), pitch (°, nose up +) and
+/// roll (°, right wing down +) — from DIS Euler angles psi, theta, phi
+/// (radians, z-y-x sequence, relative to ECEF) at a geodetic position.
+pub fn attitude_from_orientation(lat_deg: f64, lon_deg: f64, psi: f64, theta: f64, phi: f64) -> (f64, f64, f64) {
+    let (lat, lon) = (lat_deg.to_radians(), lon_deg.to_radians());
+    let (cs, ss) = (psi.cos(), psi.sin());
+    let (ct, st) = (theta.cos(), theta.sin());
+    let (cf, sf) = (phi.cos(), phi.sin());
+    // Body axes expressed in ECEF.
+    let body_x = [ct * cs, ct * ss, -st];
+    let body_y = [cs * st * sf - ss * cf, ss * st * sf + cs * cf, ct * sf];
+    let body_z = [cs * st * cf + ss * sf, ss * st * cf - cs * sf, ct * cf];
+    // Local north, east, down in ECEF.
+    let north = [-lat.sin() * lon.cos(), -lat.sin() * lon.sin(), lat.cos()];
+    let east = [-lon.sin(), lon.cos(), 0.0];
+    let down = [-lat.cos() * lon.cos(), -lat.cos() * lon.sin(), -lat.sin()];
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let mut heading = dot(body_x, east).atan2(dot(body_x, north)).to_degrees();
+    if heading < 0.0 {
+        heading += 360.0;
+    }
+    let pitch = (-dot(body_x, down)).clamp(-1.0, 1.0).asin().to_degrees();
+    let roll = dot(body_y, down).atan2(dot(body_z, down)).to_degrees();
+    (heading, pitch, roll)
+}
+
+/// Inverse of [`attitude_from_orientation`]: DIS psi, theta, phi (radians)
+/// for a local heading, pitch and roll (°). Used by test encoders.
+#[cfg(test)]
+pub fn orientation_from_attitude(lat_deg: f64, lon_deg: f64, heading: f64, pitch: f64, roll: f64) -> [f64; 3] {
+    let (lat, lon) = (lat_deg.to_radians(), lon_deg.to_radians());
+    let (h, p, r) = (heading.to_radians(), pitch.to_radians(), roll.to_radians());
+    let north = [-lat.sin() * lon.cos(), -lat.sin() * lon.sin(), lat.cos()];
+    let east = [-lon.sin(), lon.cos(), 0.0];
+    let down = [-lat.cos() * lon.cos(), -lat.cos() * lon.sin(), -lat.sin()];
+    let comb = |a: f64, u: [f64; 3], b: f64, v: [f64; 3], c: f64, w: [f64; 3]| {
+        [a * u[0] + b * v[0] + c * w[0], a * u[1] + b * v[1] + c * w[1], a * u[2] + b * v[2] + c * w[2]]
+    };
+    // Body axes in local NED for a heading-pitch-roll (z-y-x) rotation.
+    let x_ned = [p.cos() * h.cos(), p.cos() * h.sin(), -p.sin()];
+    let y_ned = [h.cos() * p.sin() * r.sin() - h.sin() * r.cos(),
+                 h.sin() * p.sin() * r.sin() + h.cos() * r.cos(),
+                 p.cos() * r.sin()];
+    let z_ned = [h.cos() * p.sin() * r.cos() + h.sin() * r.sin(),
+                 h.sin() * p.sin() * r.cos() - h.cos() * r.sin(),
+                 p.cos() * r.cos()];
+    let x = comb(x_ned[0], north, x_ned[1], east, x_ned[2], down);
+    let y = comb(y_ned[0], north, y_ned[1], east, y_ned[2], down);
+    let z = comb(z_ned[0], north, z_ned[1], east, z_ned[2], down);
+    let theta = (-x[2]).clamp(-1.0, 1.0).asin();
+    let psi = x[1].atan2(x[0]);
+    let phi = y[2].atan2(z[2]);
+    [psi, theta, phi]
 }
 
 /// Heading (°, true) of a body whose DIS Euler angles psi and theta are
@@ -520,6 +582,28 @@ mod tests {
         assert!((east - 90.0).abs() < 1e-6, "east {east}");
         let west = heading_from_orientation(0.0, 0.0, -FRAC_PI_2, 0.0);
         assert!((west - 270.0).abs() < 1e-6, "west {west}");
+    }
+
+    #[test]
+    fn attitude_round_trip_through_dis_euler() {
+        // Heading, pitch, roll → DIS psi/theta/phi → back, at 4 places.
+        for &(lat, lon) in &[(0.0, 0.0), (45.4215, -75.6972), (-33.9, 151.2), (70.0, 20.0)] {
+            for &(h, p, r) in &[(0.0, 0.0, 0.0), (54.5, 5.0, -12.0), (270.0, -8.0, 30.0), (179.0, 20.0, 0.0)] {
+                let [psi, theta, phi] = orientation_from_attitude(lat, lon, h, p, r);
+                let (h2, p2, r2) = attitude_from_orientation(lat, lon, psi, theta, phi);
+                let dh = ((h2 - h + 540.0) % 360.0) - 180.0;
+                assert!(dh.abs() < 1e-6 && (p2 - p).abs() < 1e-6 && (r2 - r).abs() < 1e-6,
+                    "({lat},{lon}) {h},{p},{r} → {h2},{p2},{r2}");
+            }
+        }
+    }
+
+    #[test]
+    fn level_at_equator_is_zero_pitch_and_roll() {
+        // At (0°, 0°) facing east, level: body x = ECEF +Y, body z = down = ECEF −X.
+        // psi = 90° turns x to +Y; phi = −90° then turns z from +Z to −X.
+        let (h, p, r) = attitude_from_orientation(0.0, 0.0, std::f64::consts::FRAC_PI_2, 0.0, -std::f64::consts::FRAC_PI_2);
+        assert!((h - 90.0).abs() < 1e-9 && p.abs() < 1e-9 && r.abs() < 1e-9, "{h} {p} {r}");
     }
 
     #[test]

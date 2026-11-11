@@ -1,0 +1,4 @@
+[toolchain]
+# Installed with rustup (DEVELOPING.md). Distro rustc is too old for the GUI crates.
+channel = "1.99.1"
+components = ["clippy", "rustfmt"]

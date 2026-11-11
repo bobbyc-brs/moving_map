@@ -6,5 +6,7 @@ license = "UNLICENSED"
 description = "Moving map display with DIS entity data and NATO symbology"
 
 [dependencies]
+# Vendored in vendor/ (DD-010); builds never reach crates.io.
+eframe = { version = "0.37", default-features = false, features = ["glow", "default_fonts", "wayland", "x11"] }
 
 [dev-dependencies]

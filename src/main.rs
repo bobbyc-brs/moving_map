@@ -1,7 +1,8 @@
-/// Moving map display — zero-dependency CLI entry point.
+/// Moving map display — CLI and touch-screen GUI entry point.
 
 mod dis;
 mod cache;
+mod gui;
 mod map;
 mod render;
 
@@ -207,10 +208,16 @@ fn render_entity_table(entities: &[EntityRecord]) -> String {
     out.push_str("  ───────────────────────────────────────────────────────────\n");
 
     for e in entities {
+        // DIS entities: icon from the entity type; seeded demo entities: activity.
+        let act = if e.entity_type.kind != 0 {
+            render::symbol::classify(&e.entity_type).1.code()
+        } else {
+            e.activity.short()
+        };
         out.push_str(&format!(
             "  {:>12}  {:<8}  {:<4}  {:<8}  {:>10.4}  {:>10.4}  {:>8.0}\n",
             e.entity_id.display(), e.status.label(), e.station.short(),
-            e.activity.short(), e.latitude, e.longitude, e.altitude));
+            act, e.latitude, e.longitude, e.altitude));
     }
     out
 }
@@ -232,6 +239,10 @@ fn print_usage() {
     eprintln!("                 [--port 3800] [--group 239.1.2.3] [--iface 10.0.0.5]");
     eprintln!("                 [--exercise 1|N|any] [--ownship s.a.e] [--lat F --lon F]");
     eprintln!("                 [--range-nm 25] [--seconds N]");
+    eprintln!("  gui            Touch-screen moving map (same DIS flags as listen)");
+    eprintln!("                 [--ownship s.a.e] [--range-nm 10] [--track-up]");
+    eprintln!("                 [--scheme day|dusk|night] [--fullscreen] [--list]");
+    eprintln!("                 [--screenshot out.ppm [--after 5]]");
 }
 
 fn main() {
@@ -268,6 +279,7 @@ fn main() {
         Some("entities") => run_entity_table(),
         Some("cache-gen") => run_cache_gen(&args[2..]),
         Some("listen") => run_listen(&args[2..]),
+        Some("gui") => run_gui(&args[2..]),
         Some(arg) => {
             eprintln!("Unknown command: {}", arg);
             print_usage();
@@ -352,7 +364,8 @@ fn flag_or_exit<T: std::str::FromStr>(args: &[String], flag: &str) -> Option<T> 
     }))
 }
 
-fn run_listen(args: &[String]) {
+/// DIS flags shared by `listen` and `gui`.
+fn dis_config_from_args(args: &[String]) -> dis::DisConfig {
     let mut cfg = dis::DisConfig::default();
     if let Some(port) = flag_or_exit(args, "--port") { cfg.port = port; }
     cfg.multicast_group = flag_or_exit(args, "--group");
@@ -363,16 +376,57 @@ fn run_listen(args: &[String]) {
         Some("any") => cfg.exercise_id = None,
         Some(_) => cfg.exercise_id = flag_or_exit(args, "--exercise"),
     }
-    let range_nm: f64 = flag_or_exit(args, "--range-nm").unwrap_or(25.0);
-    let seconds: u64 = flag_or_exit(args, "--seconds").unwrap_or(0);
-    let fixed_centre: Option<(f64, f64)> = match (flag_or_exit(args, "--lat"), flag_or_exit(args, "--lon")) {
-        (Some(lat), Some(lon)) => Some((lat, lon)),
-        _ => None,
-    };
-    let ownship = parse_flag(args, "--ownship").map(|s| parse_entity_id(&s).unwrap_or_else(|| {
+    cfg
+}
+
+fn ownship_from_args(args: &[String]) -> Option<EntityId> {
+    parse_flag(args, "--ownship").map(|s| parse_entity_id(&s).unwrap_or_else(|| {
         eprintln!("Error: --ownship takes site.application.entity, got {}", s);
         std::process::exit(1);
-    }));
+    }))
+}
+
+fn centre_from_args(args: &[String]) -> Option<(f64, f64)> {
+    match (flag_or_exit(args, "--lat"), flag_or_exit(args, "--lon")) {
+        (Some(lat), Some(lon)) => Some((lat, lon)),
+        _ => None,
+    }
+}
+
+fn run_gui(args: &[String]) {
+    let scheme = match parse_flag(args, "--scheme").as_deref() {
+        None | Some("day") => gui::Scheme::Day,
+        Some("dusk") => gui::Scheme::Dusk,
+        Some("night") => gui::Scheme::Night,
+        Some(other) => {
+            eprintln!("Error: --scheme takes day, dusk or night, got {other}");
+            std::process::exit(1);
+        }
+    };
+    let opts = gui::GuiOptions {
+        dis: dis_config_from_args(args),
+        ownship: ownship_from_args(args),
+        centre: centre_from_args(args),
+        range_nm: flag_or_exit(args, "--range-nm").unwrap_or(10.0),
+        fullscreen: args.iter().any(|a| a == "--fullscreen"),
+        screenshot: parse_flag(args, "--screenshot"),
+        screenshot_after: flag_or_exit(args, "--after").unwrap_or(5.0),
+        track_up: args.iter().any(|a| a == "--track-up"),
+        scheme,
+        list: args.iter().any(|a| a == "--list"),
+    };
+    if let Err(e) = gui::run(opts) {
+        eprintln!("Error: GUI failed: {e}");
+        std::process::exit(1);
+    }
+}
+
+fn run_listen(args: &[String]) {
+    let cfg = dis_config_from_args(args);
+    let range_nm: f64 = flag_or_exit(args, "--range-nm").unwrap_or(25.0);
+    let seconds: u64 = flag_or_exit(args, "--seconds").unwrap_or(0);
+    let fixed_centre = centre_from_args(args);
+    let ownship = ownship_from_args(args);
 
     let mut receiver = dis::receiver::Receiver::bind(&cfg).unwrap_or_else(|e| {
         eprintln!("Error: cannot listen on UDP port {}: {}", cfg.port, e);
