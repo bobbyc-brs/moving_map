@@ -1,0 +1,16 @@
+# Build artifacts
+target/
+
+# Tile cache (downloaded once, not committed)
+tile-cache/
+cache.*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

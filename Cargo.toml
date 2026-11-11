@@ -1,0 +1,10 @@
+[package]
+name = "moving-map-display"
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"
+description = "Moving map display with DIS entity data and NATO symbology"
+
+[dependencies]
+
+[dev-dependencies]
